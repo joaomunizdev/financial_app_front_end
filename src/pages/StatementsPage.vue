@@ -2,34 +2,26 @@
   <div class="d-flex flex-column gap-4">
     <div class="d-flex align-center justify-space-between">
       <div class="text-h5">Faturas</div>
-      <div class="d-flex gap-2 align-center">
-        <v-select
-          v-model="creditCardId"
-          :items="creditCards"
-          item-title="nickname"
-          item-value="id"
-          label="Cartão"
-          style="min-width: 260px"
-        />
-        <v-text-field
-          v-model.number="year"
-          type="number"
-          label="Ano"
-          style="max-width: 140px"
-        />
-        <v-select
-          v-model.number="month"
-          :items="months"
-          item-title="label"
-          item-value="value"
-          label="Mês"
-          style="max-width: 180px"
-        />
-        <v-btn prepend-icon="mdi-file-plus-outline" @click="generate"
-          >Gerar fatura</v-btn
-        >
-      </div>
     </div>
+
+    <PeriodFilterBar
+      class="mt-2"
+      :cards="creditCards"
+      :months="months"
+      :model-value-card-id="creditCardId"
+      :model-value-year="year"
+      :model-value-month="month"
+      @update:cardId="(v) => (creditCardId = v)"
+      @update:year="(v) => (year = v)"
+      @update:month="(v) => (month = v)"
+      @find="findByPeriod"
+      @generate="generate"
+      @clear="load"
+    />
+    <v-row>
+      <v-col cols="12"></v-col>
+      <v-col cols="12"></v-col>
+    </v-row>
 
     <v-card>
       <v-data-table
@@ -155,6 +147,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { http } from "../stores/auth";
+import PeriodFilterBar from "../components/PeriodFilterBar.vue";
 
 const creditCards = ref<any[]>([]);
 const creditCardId = ref<string>("");
@@ -190,16 +183,52 @@ async function fetchCards() {
     creditCardId.value = creditCards.value[0].id;
 }
 
+// estado de filtro atual
+const isFiltered = ref(false);
+
+// carrega TODAS as faturas do cartão (reseta filtro)
 async function load() {
   if (!creditCardId.value) return;
   loading.value = true;
   try {
-    items.value =
-      (
-        await http.get("/statements", {
-          params: { creditCardId: creditCardId.value },
-        })
-      ).data || [];
+    const res = await http.get("/statements", {
+      params: { creditCardId: creditCardId.value },
+    });
+    items.value = res.data || [];
+    isFiltered.value = false;
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function clearFilter() {
+  await load();
+}
+
+async function findByPeriod() {
+  if (!creditCardId.value) return;
+  loading.value = true;
+  try {
+    const st = (
+      await http.get("/statements", {
+        params: {
+          creditCardId: creditCardId.value,
+          year: year.value,
+          month: month.value,
+        },
+      })
+    ).data;
+
+    items.value = [st];
+    isFiltered.value = true;
+  } catch (e: any) {
+    if (e?.response?.status === 404) {
+      items.value = [];
+      isFiltered.value = true;
+      console.warn("Statement not found for selected period.");
+    } else {
+      throw e;
+    }
   } finally {
     loading.value = false;
   }
@@ -207,15 +236,45 @@ async function load() {
 
 async function generate() {
   if (!creditCardId.value) return;
+
+  try {
+    const st = (
+      await http.get("/statements", {
+        params: {
+          creditCardId: creditCardId.value,
+          year: year.value,
+          month: month.value,
+        },
+      })
+    ).data;
+
+    items.value = [st];
+    isFiltered.value = true;
+    return;
+  } catch (e: any) {
+    if (e?.response?.status !== 404) throw e;
+  }
+
   await http.post("/statements", {
     creditCardId: creditCardId.value,
     year: year.value,
     month: month.value,
   });
-  await load();
+
+  const created = (
+    await http.get("/statements", {
+      params: {
+        creditCardId: creditCardId.value,
+        year: year.value,
+        month: month.value,
+      },
+    })
+  ).data;
+
+  items.value = [created];
+  isFiltered.value = true;
 }
 
-// Detail
 const openView = ref(false);
 const detailLoading = ref(false);
 const selected = ref<any>({});
@@ -250,18 +309,24 @@ async function saveSelected() {
   selected.value = (
     await http.patch(`/statements/${selected.value.id}`, body)
   ).data;
-  await load();
+
+  if (isFiltered.value) await findByPeriod();
+  else await load();
 }
 
 async function toggleLock(st: any) {
   const updated = (
     await http.patch(`/statements/${st.id}`, { locked: !st.locked })
   ).data;
-  const idx = items.value.findIndex((x) => x.id === st.id);
-  if (idx >= 0) items.value[idx] = updated;
+
+  if (isFiltered.value) {
+    await findByPeriod();
+  } else {
+    const idx = items.value.findIndex((x) => x.id === st.id);
+    if (idx >= 0) items.value[idx] = updated;
+  }
 }
 
-// Pay
 const openPayDialog = ref(false);
 const pay = ref({ amount: "", paidAt: "" });
 const payLoading = ref(false);
@@ -281,7 +346,8 @@ async function confirmPay() {
       paidAt: pay.value.paidAt,
     });
     openPayDialog.value = false;
-    await load();
+    if (isFiltered.value) await findByPeriod();
+    else await load();
   } finally {
     payLoading.value = false;
   }

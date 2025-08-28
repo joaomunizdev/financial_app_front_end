@@ -1,4 +1,4 @@
-# Cards SaaS - Frontend (Vue 3 + Vuetify + Pinia)
+# Financial App - Frontend (Vue 3 + Vuetify + Pinia)
 
 ## Install
 ```bash

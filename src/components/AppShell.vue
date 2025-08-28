@@ -1,9 +1,12 @@
 <template>
   <v-app>
     <v-navigation-drawer v-model="drawer" :rail="isMd" elevation="1">
-      <div class="d-flex align-center py-4 px-4">
-        <v-icon icon="mdi-credit-card-outline" class="mr-2" size="28" />
-        <span class="text-h6 font-weight-medium" v-if="!isMd">Cards SaaS</span>
+      <div class="d-flex flex-column align-center justify-center py-6">
+        <img
+          src="../assets/logo.png"
+          alt="Financial App Logo"
+          style="max-width: 150px"
+        />
       </div>
       <v-divider />
       <v-list density="comfortable" nav>
@@ -81,11 +84,11 @@ const title = computed(() => {
   const m: Record<string, string> = {
     "/dashboard": "Resumo",
     "/credit-cards": "Cartões de Crédito",
-    "/tenants": "Responsáveis (Tenants)",
+    "/tenants": "Responsáveis",
     "/purchases": "Compras",
     "/statements": "Faturas",
   };
-  return m[location.pathname] ?? "Cards SaaS";
+  return m[location.pathname] ?? "Financial App";
 });
 
 function logout() {

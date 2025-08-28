@@ -1,7 +1,7 @@
 <template>
   <div class="d-flex flex-column gap-4">
     <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Responsáveis (Tenants)</div>
+      <div class="text-h5">Responsáveis</div>
       <v-btn prepend-icon="mdi-plus" @click="open = true">Novo</v-btn>
     </div>
     <v-row>

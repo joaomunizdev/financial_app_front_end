@@ -2,34 +2,51 @@
   <div class="d-flex flex-column gap-4">
     <div class="d-flex align-center justify-space-between">
       <div class="text-h5">Resumo</div>
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="fetchAll"
-        >Atualizar</v-btn
-      >
     </div>
+
+    <FilterBar
+      class="mt-2"
+      :cards="cards"
+      :statements="statements"
+      :model-value-card-id="creditCardId"
+      :model-value-statement-id="statementId"
+      @update:cardId="onCardChange"
+      @update:statementId="(v) => (statementId = v)"
+      @apply="fetchAll"
+      @clear="clearFilter"
+    />
+  </div>
+  <div class="d-flex flex-column gap-4">
     <v-row>
       <v-col cols="12"></v-col>
+      <v-col cols="12"></v-col>
     </v-row>
+
     <v-row>
-      <v-col cols="12" md="4"
-        ><StatCard
+      <v-col cols="12" md="4">
+        <StatCard
           label="Total global"
           :value="currency(globalTotal)"
           icon="mdi-cash-multiple"
-      /></v-col>
-      <v-col cols="12" md="4"
-        ><StatCard
+        />
+      </v-col>
+      <v-col cols="12" md="4">
+        <StatCard
           label="Cartões"
           :value="cards.length.toString()"
           icon="mdi-credit-card-outline"
-      /></v-col>
-      <v-col cols="12" md="4"
-        ><StatCard
+        />
+      </v-col>
+      <v-col cols="12" md="4">
+        <StatCard
           label="Responsáveis"
           :value="tenants.length.toString()"
           icon="mdi-account-multiple-outline"
-      /></v-col>
+        />
+      </v-col>
     </v-row>
     <v-row>
+      <v-col cols="12"></v-col>
       <v-col cols="12"></v-col>
     </v-row>
     <v-card>
@@ -48,8 +65,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import http from "../plugins/http";
+import { http } from "../stores/auth";
 import StatCard from "../components/StatCard.vue";
+import FilterBar from "../components/FilterBar.vue";
 
 const loading = ref(false);
 const globalTotal = ref(0);
@@ -57,9 +75,14 @@ const byTenant = ref<any[]>([]);
 const cards = ref<any[]>([]);
 const tenants = ref<any[]>([]);
 
+// 🔽 NOVO: filtros de fatura
+const creditCardId = ref<string>("");
+const statements = ref<any[]>([]);
+const statementId = ref<string>("");
+
 const headers = [
   { title: "Responsável", key: "tenantName" },
-  { title: "Total", key: "total_amount", align: "end" },
+  { title: "Total", key: "totalAmount", align: "end" },
 ];
 
 function currency(v: string | number) {
@@ -67,28 +90,64 @@ function currency(v: string | number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+async function loadCards() {
+  cards.value = (await http.get("/credit-cards")).data || [];
+  if (!creditCardId.value && cards.value.length) {
+    creditCardId.value = cards.value[0].id;
+    await loadStatements();
+  }
+}
+
+// 🔽 NOVO: busca faturas do cartão e monta label YYYY-MM
+async function loadStatements() {
+  statements.value = [];
+  statementId.value = "";
+  if (!creditCardId.value) return;
+  const list =
+    (
+      await http.get("/statements", {
+        params: { creditCardId: creditCardId.value },
+      })
+    ).data || [];
+  statements.value = list.map((s: any) => ({
+    ...s,
+    periodLabel: `${s.year}-${String(s.month).padStart(2, "0")}`,
+  }));
+  if (statements.value.length) statementId.value = statements.value[0].id;
+}
+
 async function fetchAll() {
   loading.value = true;
   try {
-    const [g, t, c] = await Promise.all([
-      http.get("/reports/global"),
-      http.get("/reports/by-tenant"),
-      http.get("/credit-cards"),
+    const params = statementId.value ? { statementId: statementId.value } : {};
+    const [g, t, tn] = await Promise.all([
+      http.get("/reports/global", { params }),
+      http.get("/reports/by-tenant", { params }),
+      http.get("/tenants"),
     ]);
-    globalTotal.value = Number(
-      g.data.total_amount || g.data?.total_amount || 0
-    );
+    globalTotal.value = Number(g.data.totalAmount || g.data?.totalamount || 0);
     byTenant.value = (t.data || []).map((x: any) => ({
       ...x,
-      total_amount: currency(x.total_amount || x.total_amount),
+      totalAmount: currency(x.totalAmount || x.totalamount),
     }));
-    cards.value = c.data || [];
-    const tn = await http.get("/tenants");
     tenants.value = tn.data || [];
   } finally {
     loading.value = false;
   }
 }
 
-onMounted(fetchAll);
+async function onCardChange(v: string) {
+  creditCardId.value = v;
+  await loadStatements();
+}
+
+async function clearFilter() {
+  statementId.value = "";
+  await fetchAll();
+}
+
+onMounted(async () => {
+  await loadCards();
+  await fetchAll();
+});
 </script>

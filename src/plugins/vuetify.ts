@@ -33,14 +33,9 @@ export const vuetify = createVuetify({
       density: "comfortable",
       color: "primary",
     },
-    VBtn: {
-      color: "primary",
-      rounded: "lg",
-    },
-    VCard: {
-      rounded: "xl",
-      elevation: 1,
-    },
+    VBtn: { rounded: "lg", color: "primary" },
+    VSelect: { variant: "outlined", density: "comfortable", color: "primary" },
+    VCard: { rounded: "xl", elevation: 1 },
     VDataTable: {
       density: "comfortable",
       hover: true,
