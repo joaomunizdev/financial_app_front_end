@@ -107,7 +107,7 @@
             :headers="itemHeaders"
             :loading="detailLoading"
           >
-            <template #item.amount="{ item }">{{
+            <template #item.amount="{ item }: { item: any }">{{
               currency(item.amount)
             }}</template>
           </v-data-table>
@@ -166,10 +166,10 @@ const headers = [
   { title: "Período", key: "period" },
   { title: "Fechamento", key: "closingDate" },
   { title: "Vencimento", key: "dueDate" },
-  { title: "Total", key: "totalAmount", align: "end" },
-  { title: "Status", key: "locked", align: "center" },
-  { title: "Pagamento", key: "paid", align: "center" },
-  { title: "", key: "actions", align: "end", sortable: false },
+  { title: "Total", key: "totalAmount", align: "end" as const },
+  { title: "Status", key: "locked", align: "center" as const },
+  { title: "Pagamento", key: "paid", align: "center" as const },
+  { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
 
 function currency(v: string | number) {
@@ -280,7 +280,7 @@ const detailLoading = ref(false);
 const selected = ref<any>({});
 const itemHeaders = [
   { title: "Descrição", key: "label" },
-  { title: "Valor", key: "amount", align: "end" },
+  { title: "Valor", key: "amount", align: "end" as const },
 ];
 const detailTitle = computed(() =>
   selected.value?.year

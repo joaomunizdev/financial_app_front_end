@@ -82,7 +82,7 @@ const statementId = ref<string>("");
 
 const headers = [
   { title: "Responsável", key: "tenantName" },
-  { title: "Total", key: "totalAmount", align: "end" },
+  { title: "Total", key: "totalAmount", align: "end" as const },
 ];
 
 function currency(v: string | number) {

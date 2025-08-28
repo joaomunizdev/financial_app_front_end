@@ -63,8 +63,8 @@ const headers = [
   { title: "Apelido", key: "nickname" },
   { title: "Bandeira", key: "brand" },
   { title: "Final", key: "last4" },
-  { title: "Limite", key: "limitAmount", align: "end" },
-  { title: "", key: "actions", align: "end", sortable: false },
+  { title: "Limite", key: "limitAmount", align: "end" as const },
+  { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
 
 const form = reactive<any>({

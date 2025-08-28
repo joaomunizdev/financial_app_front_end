@@ -62,7 +62,7 @@ const search = ref("");
 const items = ref<any[]>([]);
 const headers = [
   { title: "Nome", key: "name" },
-  { title: "", key: "actions", align: "end", sortable: false },
+  { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
 
 const form = reactive<any>({ id: "", name: "" });

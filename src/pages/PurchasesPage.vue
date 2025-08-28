@@ -79,7 +79,12 @@ const tenants = ref<any[]>([]);
 const form = ref<any | null>(null);
 const filters = ref({ creditCardId: "", tenantId: "" });
 
-const headers = [
+const headers: {
+  title: string;
+  key: string;
+  align?: "start" | "center" | "end";
+  sortable?: boolean;
+}[] = [
   { title: "Descrição", key: "description" },
   { title: "Data", key: "purchaseDate" },
   { title: "Valor", key: "totalAmount", align: "end" },
