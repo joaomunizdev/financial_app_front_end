@@ -28,6 +28,9 @@
           <v-btn icon variant="text" color="error" @click="remove(item)"
             ><v-icon>mdi-delete</v-icon></v-btn
           >
+          <v-btn icon variant="text" color="primary" @click="openExport(item)">
+            <v-icon>mdi-file-pdf-box</v-icon>
+          </v-btn>
         </template>
       </v-data-table>
     </v-card>
@@ -46,6 +49,54 @@
             >
           </v-form>
         </v-card-text>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="exportDlg.open" max-width="560">
+      <v-card>
+        <v-card-title class="d-flex align-center justify-space-between">
+          <span>Exportar PDF do responsável</span>
+          <v-chip size="small" variant="tonal" v-if="exportDlg.tenant">
+            {{ exportDlg.tenant.name }}
+          </v-chip>
+        </v-card-title>
+
+        <v-card-text>
+          <div class="mb-3 text-body-2">
+            Selecione a fatura salva (statement) para gerar o PDF com compras e
+            assinaturas desse mês.
+          </div>
+
+          <v-select
+            v-model="exportDlg.statementId"
+            :items="exportDlg.statements"
+            :loading="exportDlg.loading"
+            item-title="label"
+            item-value="id"
+            label="Fatura (Cartão — Período)"
+            variant="outlined"
+            density="comfortable"
+            prepend-inner-icon="mdi-calendar-month-outline"
+            :disabled="exportDlg.loading || exportDlg.statements.length === 0"
+          />
+
+          <div
+            v-if="!exportDlg.loading && exportDlg.statements.length === 0"
+            class="mt-2 text-medium-emphasis"
+          >
+            Nenhuma fatura encontrada. Gere uma fatura antes de exportar.
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="justify-end">
+          <v-btn variant="text" @click="closeExport">Cancelar</v-btn>
+          <v-btn
+            color="primary"
+            :loading="exportDlg.downloading"
+            :disabled="!exportDlg.statementId"
+            @click="exportPdf()"
+            >Exportar</v-btn
+          >
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </div>
@@ -105,6 +156,138 @@ async function save() {
 async function remove(it: any) {
   await http.delete(`/tenants/${it.id}`);
   await fetchAll();
+}
+
+type Tenant = { id: string; name: string };
+type Card = { id: string; nickname: string };
+type Statement = {
+  id: string;
+  creditCardId: string;
+  year: number;
+  month: number;
+};
+
+const exportDlg = reactive<{
+  open: boolean;
+  tenant: Tenant | null;
+  statements: Array<{ id: string; label: string; year: number; month: number }>;
+  statementId: string | null;
+  loading: boolean;
+  downloading: boolean;
+}>({
+  open: false,
+  tenant: null,
+  statements: [],
+  statementId: null,
+  loading: false,
+  downloading: false,
+});
+
+async function openExport(tenant: Tenant) {
+  exportDlg.open = true;
+  exportDlg.tenant = tenant;
+  exportDlg.statements = [];
+  exportDlg.statementId = null;
+  exportDlg.loading = true;
+
+  try {
+    const cards: Card[] = (await http.get("/credit-cards")).data || [];
+
+    const lists = await Promise.all(
+      cards.map(async (c) => {
+        const data = await http.get("/statements", {
+          params: { creditCardId: c.id },
+        });
+        const stmts: Statement[] = Array.isArray(data.data) ? data.data : [];
+        return stmts.map((s) => ({
+          id: s.id,
+          label: `${c.nickname} — ${s.year}-${String(s.month).padStart(
+            2,
+            "0"
+          )}`,
+          year: s.year,
+          month: s.month,
+        }));
+      })
+    );
+
+    exportDlg.statements = lists
+      .flat()
+      .sort((a, b) => a.label.localeCompare(b.label));
+  } finally {
+    exportDlg.loading = false;
+  }
+}
+
+function closeExport() {
+  exportDlg.open = false;
+  exportDlg.tenant = null;
+  exportDlg.statements = [];
+  exportDlg.statementId = null;
+}
+
+async function exportPdf() {
+  if (!exportDlg.statementId || !exportDlg.tenant) return;
+  exportDlg.downloading = true;
+  try {
+    const st = exportDlg.statements.find((s) => s.id === exportDlg.statementId);
+    if (!st) throw new Error("Statement not found");
+
+    const resp = await http.get(
+      `/reports/tenants/${exportDlg.tenant.id}/monthly-pdf`,
+      {
+        params: {
+          year: st.year,
+          month: st.month,
+        },
+        responseType: "blob",
+      }
+    );
+
+    const cd = resp.headers?.["content-disposition"] as string | undefined;
+    const filename =
+      parseFilenameFromContentDisposition(cd) ||
+      `relatório_${slug(exportDlg.tenant.name)}_${st.year}-${String(
+        st.month
+      ).padStart(2, "0")}.pdf`;
+
+    const blob = new Blob([resp.data], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    closeExport();
+  } finally {
+    exportDlg.downloading = false;
+  }
+}
+
+function parseFilenameFromContentDisposition(cd?: string): string | null {
+  if (!cd) return null;
+  const m = /filename\*?=(?:UTF-8''|")?([^\";]+)\"?/.exec(cd);
+  if (m?.[1]) {
+    try {
+      return decodeURIComponent(m[1]);
+    } catch {
+      return m[1];
+    }
+  }
+  return null;
+}
+
+function slug(s: string) {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\-]+/g, "_")
+    .replace(/_{2,}/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
 }
 
 onMounted(fetchAll);
