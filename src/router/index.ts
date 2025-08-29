@@ -25,10 +25,14 @@ const routes = [
     component: () => import("../pages/PurchasesPage.vue"),
     meta: { auth: true },
   },
-  // 🔽 adicionado:
   {
     path: "/statements",
     component: () => import("../pages/StatementsPage.vue"),
+    meta: { auth: true },
+  },
+  {
+    path: "/subscriptions",
+    component: () => import("../pages/SubscriptionsPage.vue"),
     meta: { auth: true },
   },
 ];

@@ -78,6 +78,7 @@ const items = [
   },
   { to: "/purchases", title: "Compras", icon: "mdi-cart-outline" },
   { to: "/statements", title: "Faturas", icon: "mdi-file-document-outline" },
+  { to: "/subscriptions", title: "Assinaturas", icon: "mdi-repeat" },
 ];
 
 const title = computed(() => {
@@ -87,6 +88,7 @@ const title = computed(() => {
     "/tenants": "Responsáveis",
     "/purchases": "Compras",
     "/statements": "Faturas",
+    "/subscriptions": "Assinaturas",
   };
   return m[location.pathname] ?? "Financial App";
 });
