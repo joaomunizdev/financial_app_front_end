@@ -20,12 +20,29 @@ const lightMinimal: ThemeDefinition = {
   },
 };
 
+const darkMinimal: ThemeDefinition = {
+  dark: true,
+  colors: {
+    primary: "#3B82F6",
+    secondary: "#94A3B8",
+    surface: "#1E293B",
+    background: "#0F172A",
+    success: "#22C55E",
+    warning: "#EAB308",
+    info: "#38BDF8",
+    error: "#EF4444",
+  },
+  variables: {
+    "border-radius": "12px",
+  },
+};
+
 export const vuetify = createVuetify({
   components,
   directives,
   theme: {
     defaultTheme: "lightMinimal",
-    themes: { lightMinimal },
+    themes: { lightMinimal, darkMinimal },
   },
   defaults: {
     VTextField: {

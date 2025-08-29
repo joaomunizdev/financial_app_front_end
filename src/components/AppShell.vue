@@ -1,12 +1,8 @@
 <template>
   <v-app>
     <v-navigation-drawer v-model="drawer" :rail="isMd" elevation="1">
-      <div class="d-flex flex-column align-center justify-center py-6">
-        <img
-          src="../assets/logo.png"
-          alt="Financial App Logo"
-          style="max-width: 150px"
-        />
+      <div class="d-flex flex-column align-center justify-center">
+        <img :src="logoSrc" alt="Financial App Logo" style="max-width: 150px" />
       </div>
       <v-divider />
       <v-list density="comfortable" nav>
@@ -30,6 +26,9 @@
       <v-app-bar-nav-icon @click="drawer = !drawer" />
       <v-toolbar-title class="text-h6">{{ title }}</v-toolbar-title>
       <v-spacer />
+      <v-app-nav-icon>
+        <ThemeSwitcher />
+      </v-app-nav-icon>
       <v-btn icon variant="text"><v-icon>mdi-bell-outline</v-icon></v-btn>
       <v-avatar size="32" class="ml-2">
         <v-icon>mdi-account</v-icon>
@@ -57,7 +56,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useDisplay } from "vuetify";
+import { useTheme } from "vuetify";
 import { useAuthStore } from "../stores/auth";
+import ThemeSwitcher from "../components/ThemeSwitcher.vue";
+
+const theme = useTheme();
+
+const logoSrc = computed(() =>
+  theme.global.current.value.dark
+    ? new URL("../assets/white-logo.png", import.meta.url).href
+    : new URL("../assets/logo.png", import.meta.url).href
+);
 
 const auth = useAuthStore();
 const { mdAndDown } = useDisplay();
