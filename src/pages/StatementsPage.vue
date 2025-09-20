@@ -242,24 +242,6 @@ async function findByPeriod() {
 async function generate() {
   if (!creditCardId.value) return;
 
-  try {
-    const st = (
-      await http.get("/statements", {
-        params: {
-          creditCardId: creditCardId.value,
-          year: year.value,
-          month: month.value,
-        },
-      })
-    ).data;
-
-    items.value = [st];
-    isFiltered.value = true;
-    return;
-  } catch (e: any) {
-    if (e?.response?.status !== 404) throw e;
-  }
-
   await http.post("/statements", {
     creditCardId: creditCardId.value,
     year: year.value,
