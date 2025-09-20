@@ -31,8 +31,14 @@
         class="pa-2"
       >
         <template #item.period="{ item }"
-          >{{ item.year }}-{{ String(item.month).padStart(2, "0") }}</template
+          >{{ String(item.month).padStart(2, "0") }}/{{ item.year }}</template
         >
+        <template #item.closingDate="{ item }">{{
+          formatDateBR(item.closingDate)
+        }}</template>
+        <template #item.dueDate="{ item }">{{
+          formatDateBR(item.dueDate)
+        }}</template>
         <template #item.totalAmount="{ item }">{{
           currency(item.totalAmount)
         }}</template>
@@ -218,7 +224,6 @@ async function findByPeriod() {
         },
       })
     ).data;
-
     items.value = [st];
     isFiltered.value = true;
   } catch (e: any) {
@@ -284,7 +289,7 @@ const itemHeaders = [
 ];
 const detailTitle = computed(() =>
   selected.value?.year
-    ? `${selected.value.year}-${String(selected.value.month).padStart(2, "0")}`
+    ? `${String(selected.value.month).padStart(2, "0")}/${selected.value.year}`
     : ""
 );
 
@@ -296,6 +301,13 @@ async function view(st: any) {
   } finally {
     detailLoading.value = false;
   }
+}
+
+function formatDateBR(dateString: string) {
+  if (!dateString) return "—";
+
+  const date = new Date(dateString);
+  return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 async function saveSelected() {

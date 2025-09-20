@@ -20,6 +20,11 @@
         <template #item.totalAmount="{ item }">{{
           currency(item.totalAmount)
         }}</template>
+
+        <template #item.purchaseDate="{ item }">{{
+          formatDateBR(item.purchaseDate)
+        }}</template>
+
         <template #item.isInstallment="{ item }">
           <v-chip
             :color="item.isInstallment ? 'primary' : 'secondary'"
@@ -96,6 +101,14 @@ const headers: {
 function currency(v: string) {
   const n = Number(v || 0);
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatDateBR(dateString: string) {
+  if (!dateString) return "—"; // Retorna um traço se a data for nula
+
+  const date = new Date(dateString);
+  // Usar timeZone: 'UTC' evita problemas de a data "voltar" um dia
+  return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 function edit(it: any) {

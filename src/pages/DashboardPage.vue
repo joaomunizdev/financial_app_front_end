@@ -75,7 +75,6 @@ const byTenant = ref<any[]>([]);
 const cards = ref<any[]>([]);
 const tenants = ref<any[]>([]);
 
-// 🔽 NOVO: filtros de fatura
 const creditCardId = ref<string>("");
 const statements = ref<any[]>([]);
 const statementId = ref<string>("");
@@ -98,7 +97,6 @@ async function loadCards() {
   }
 }
 
-// 🔽 NOVO: busca faturas do cartão e monta label YYYY-MM
 async function loadStatements() {
   statements.value = [];
   statementId.value = "";
@@ -111,7 +109,7 @@ async function loadStatements() {
     ).data || [];
   statements.value = list.map((s: any) => ({
     ...s,
-    periodLabel: `${s.year}-${String(s.month).padStart(2, "0")}`,
+    periodLabel: `${String(s.month).padStart(2, "0")}/${s.year}`,
   }));
   if (statements.value.length) statementId.value = statements.value[0].id;
 }
