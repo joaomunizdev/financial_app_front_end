@@ -58,16 +58,6 @@
             :title="item.title"
           />
         </v-list>
-        <template #append>
-          <v-divider />
-          <v-list density="compact">
-            <v-list-item
-              prepend-icon="mdi-logout"
-              title="Sair"
-              @click="logout"
-            />
-          </v-list>
-        </template>
       </v-navigation-drawer>
 
       <v-app-bar elevation="0" color="transparent" class="app-toolbar px-4">
@@ -75,12 +65,22 @@
         <v-toolbar-title class="text-h6">{{ title }}</v-toolbar-title>
         <v-spacer />
         <ThemeSwitcher />
-        <v-btn icon variant="text" class="ml-2"
-          ><v-icon>mdi-bell-outline</v-icon></v-btn
-        >
-        <v-avatar size="36" class="ml-2" color="primary" variant="tonal">
-          <v-icon>mdi-account</v-icon>
-        </v-avatar>
+        <v-menu>
+          <template #activator="{ props }">
+            <v-btn icon variant="text" class="ml-2" v-bind="props">
+              <v-avatar size="36" color="primary" variant="tonal">
+                <v-icon>mdi-account</v-icon>
+              </v-avatar>
+            </v-btn>
+          </template>
+          <v-list density="compact">
+            <v-list-item
+              prepend-icon="mdi-logout"
+              title="Sair"
+              @click="logout"
+            />
+          </v-list>
+        </v-menu>
       </v-app-bar>
 
       <v-main class="app-background">
@@ -90,8 +90,14 @@
       </v-main>
     </template>
 
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-      {{ snackbar.text }}
+    <v-snackbar
+      v-model="toast.visible"
+      :color="toast.color"
+      :timeout="toast.timeout"
+      location="bottom right"
+      variant="outlined"
+    >
+      {{ toast.message }}
     </v-snackbar>
   </v-app>
 </template>
@@ -103,6 +109,7 @@ import { useDisplay } from "vuetify";
 import { useTheme } from "vuetify";
 import { useAuthStore } from "../stores/auth";
 import ThemeSwitcher from "../components/ThemeSwitcher.vue";
+import { useToastStore } from "../stores/toast";
 
 const theme = useTheme();
 
@@ -158,12 +165,12 @@ const title = computed(() => {
   return m[route.path] ?? "Financial App";
 });
 
-function logout() {
-  auth.logout();
+async function logout() {
+  await auth.logout();
   location.assign("/login");
 }
 
-const snackbar = ref({ show: false, text: "", color: "success" });
+const toast = useToastStore();
 </script>
 
 <style scoped>
