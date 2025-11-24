@@ -2,19 +2,16 @@
   <v-card class="auth-card" elevation="8">
     <v-card-text>
       <div class="text-center mb-6">
-        <v-img
-          :src="logoSrc"
-          alt="Financial App Logo"
-          width="120"
-          class="mx-auto mb-3"
-          contain
-        />
         <div class="text-h5 font-weight-medium">Entrar</div>
         <div class="text-body-2 text-medium-emphasis">
           Bem-vindo de volta! Acesse sua conta.
         </div>
       </div>
-      <v-form @submit.prevent="onSubmit" v-model="valid" class="d-flex flex-column gap-3">
+      <v-form
+        @submit.prevent="onSubmit"
+        v-model="valid"
+        class="d-flex flex-column gap-3"
+      >
         <v-text-field
           v-model="email"
           label="E-mail"

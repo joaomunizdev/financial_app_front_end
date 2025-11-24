@@ -2,19 +2,16 @@
   <v-card class="auth-card" elevation="8">
     <v-card-text>
       <div class="text-center mb-6">
-        <v-img
-          :src="logoSrc"
-          alt="Financial App Logo"
-          width="120"
-          class="mx-auto mb-3"
-          contain
-        />
         <div class="text-h5 font-weight-medium">Criar conta</div>
         <div class="text-body-2 text-medium-emphasis">
           Cadastre-se para organizar cartões e faturas.
         </div>
       </div>
-      <v-form @submit.prevent="onSubmit" v-model="valid" class="d-flex flex-column gap-3">
+      <v-form
+        @submit.prevent="onSubmit"
+        v-model="valid"
+        class="d-flex flex-column gap-3"
+      >
         <v-text-field
           v-model="name"
           label="Nome completo"

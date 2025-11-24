@@ -1,7 +1,7 @@
 <template>
   <v-app>
     <template v-if="isAuthPage">
-      <v-main class="auth-background">
+      <v-main class="auth-background auth-main">
         <div class="auth-layout px-4">
           <div class="auth-theme-switch-top">
             <ThemeSwitcher />
@@ -14,7 +14,6 @@
               class="mb-4 mx-auto"
               contain
             />
-            <div class="text-h4 font-weight-bold mb-2">Financial App</div>
             <div class="text-body-1 text-medium-emphasis">
               Centralize seus cartões, controle compras e acompanhe faturas em um
               só lugar.
@@ -189,16 +188,21 @@ const toast = useToastStore();
     rgb(var(--v-theme-background));
 }
 
+.auth-main {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
 .auth-layout {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 24px;
   max-width: 520px;
   margin: 0 auto;
-  padding: 48px 16px;
+  padding: 24px 16px 32px;
   text-align: center;
   position: relative;
 }
