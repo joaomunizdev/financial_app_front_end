@@ -11,6 +11,11 @@ const routes = [
     meta: { auth: true },
   },
   {
+    path: "/reports",
+    component: () => import("../pages/ReportsPage.vue"),
+    meta: { auth: true },
+  },
+  {
     path: "/credit-cards",
     component: () => import("../pages/CreditCardsPage.vue"),
     meta: { auth: true },
