@@ -1,10 +1,27 @@
 <template>
   <v-app>
-    <v-navigation-drawer v-model="drawer" :rail="isMd" elevation="1">
-      <div class="d-flex flex-column align-center justify-center">
-        <img :src="logoSrc" alt="Financial App Logo" style="max-width: 150px" />
-      </div>
-      <v-divider />
+    <v-navigation-drawer
+      v-model="drawer"
+      :rail="isMd"
+      :expand-on-hover="isMd"
+      color="surface"
+      elevation="1"
+      border="0"
+      class="app-drawer"
+    >
+      <v-sheet class="pa-4 text-center" color="transparent">
+        <v-img
+          :src="logoSrc"
+          alt="Financial App Logo"
+          width="140"
+          class="mx-auto mb-2"
+          contain
+        />
+        <div class="text-subtitle-2 text-medium-emphasis">
+          Controle financeiro pessoal
+        </div>
+      </v-sheet>
+      <v-divider class="my-2" />
       <v-list density="comfortable" nav>
         <v-list-item
           v-for="item in items"
@@ -22,29 +39,23 @@
       </template>
     </v-navigation-drawer>
 
-    <v-app-bar elevation="0" color="surface">
+    <v-app-bar elevation="0" color="transparent" class="app-toolbar px-4">
       <v-app-bar-nav-icon @click="drawer = !drawer" />
       <v-toolbar-title class="text-h6">{{ title }}</v-toolbar-title>
       <v-spacer />
-      <v-app-nav-icon>
-        <ThemeSwitcher />
-      </v-app-nav-icon>
-      <v-btn icon variant="text"><v-icon>mdi-bell-outline</v-icon></v-btn>
-      <v-avatar size="32" class="ml-2">
+      <ThemeSwitcher />
+      <v-btn icon variant="text" class="ml-2"
+        ><v-icon>mdi-bell-outline</v-icon></v-btn
+      >
+      <v-avatar size="36" class="ml-2" color="primary" variant="tonal">
         <v-icon>mdi-account</v-icon>
       </v-avatar>
     </v-app-bar>
 
-    <v-main>
-      <div
-        class="pa-6"
-        style="
-          min-height: calc(100vh - 64px);
-          background: rgb(var(--v-theme-background));
-        "
-      >
+    <v-main class="app-background">
+      <v-container fluid class="py-6 px-6">
         <router-view />
-      </div>
+      </v-container>
     </v-main>
 
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
@@ -54,7 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { useDisplay } from "vuetify";
 import { useTheme } from "vuetify";
 import { useAuthStore } from "../stores/auth";
@@ -69,12 +81,21 @@ const logoSrc = computed(() =>
 );
 
 const auth = useAuthStore();
+const route = useRoute();
 const { mdAndDown } = useDisplay();
 const isMd = computed(() => mdAndDown.value);
-const drawer = ref(!isMd.value);
+const drawer = ref(true);
+watch(
+  () => isMd.value,
+  (value) => {
+    drawer.value = !value;
+  },
+  { immediate: true }
+);
 
 const items = [
   { to: "/dashboard", title: "Dashboard", icon: "mdi-view-dashboard-outline" },
+  { to: "/reports", title: "Relatórios", icon: "mdi-chart-box-outline" },
   {
     to: "/credit-cards",
     title: "Cartões",
@@ -93,13 +114,14 @@ const items = [
 const title = computed(() => {
   const m: Record<string, string> = {
     "/dashboard": "Resumo",
+    "/reports": "Relatórios",
     "/credit-cards": "Cartões de Crédito",
     "/tenants": "Responsáveis",
     "/purchases": "Compras",
     "/statements": "Faturas",
     "/subscriptions": "Assinaturas",
   };
-  return m[location.pathname] ?? "Financial App";
+  return m[route.path] ?? "Financial App";
 });
 
 function logout() {
@@ -109,3 +131,29 @@ function logout() {
 
 const snackbar = ref({ show: false, text: "", color: "success" });
 </script>
+
+<style scoped>
+.app-background {
+  min-height: 100vh;
+  background: radial-gradient(
+      circle at 15% 20%,
+      rgba(var(--v-theme-primary), 0.15),
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 80% 0%,
+      rgba(var(--v-theme-secondary), 0.1),
+      transparent 35%
+    ),
+    rgb(var(--v-theme-background));
+}
+
+.app-toolbar {
+  backdrop-filter: blur(12px);
+}
+
+.app-drawer :deep(.v-list-item--active) {
+  color: rgb(var(--v-theme-primary)) !important;
+  background-color: rgba(var(--v-theme-primary), 0.12) !important;
+}
+</style>

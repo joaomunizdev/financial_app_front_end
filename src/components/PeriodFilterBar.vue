@@ -62,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch } from "vue";
 
 const props = defineProps<{
   cards: any[];
@@ -73,19 +73,58 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:cardId', v: string): void;
-  (e: 'update:year', v: number): void;
-  (e: 'update:month', v: number): void;
-  (e: 'find'): void;
-  (e: 'generate'): void;
-  (e: 'clear'): void;
+  (e: "update:cardId", v: string): void;
+  (e: "update:year", v: number): void;
+  (e: "update:month", v: number): void;
+  (e: "find"): void;
+  (e: "generate"): void;
+  (e: "clear"): void;
 }>();
 
-const localCardId = ref(props.modelValueCardId || '');
+const localCardId = ref(props.modelValueCardId || "");
 const localYear = ref(props.modelValueYear || new Date().getFullYear());
 const localMonth = ref(props.modelValueMonth || new Date().getMonth() + 1);
 
-watch(localCardId, v => emit('update:cardId', v));
-watch(localYear, v => emit('update:year', Number(v)));
-watch(localMonth, v => emit('update:month', Number(v)));
+watch(localCardId, (v) => emit("update:cardId", v));
+watch(localYear, (v) => emit("update:year", Number(v)));
+watch(localMonth, (v) => emit("update:month", Number(v)));
+
+watch(
+  () => props.modelValueCardId,
+  (v) => {
+    if (v !== undefined && v !== localCardId.value) {
+      localCardId.value = v || "";
+    }
+  }
+);
+
+watch(
+  () => props.modelValueYear,
+  (v) => {
+    if (typeof v === "number" && v !== localYear.value) {
+      localYear.value = v;
+    }
+  }
+);
+
+watch(
+  () => props.modelValueMonth,
+  (v) => {
+    if (typeof v === "number" && v !== localMonth.value) {
+      localMonth.value = v;
+    }
+  }
+);
+
+watch(
+  () => props.cards,
+  (list) => {
+    if (!list?.length) return;
+    const exists = list.some((card) => card.id === localCardId.value);
+    if (!exists) {
+      localCardId.value = props.modelValueCardId || list[0].id;
+    }
+  },
+  { immediate: true, deep: true }
+);
 </script>
