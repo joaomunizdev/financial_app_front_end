@@ -3,7 +3,9 @@
     <template v-if="isAuthPage">
       <v-main class="auth-background">
         <div class="auth-layout px-4">
-          <ThemeSwitcher class="auth-theme-switch-top" />
+          <div class="auth-theme-switch-top">
+            <ThemeSwitcher />
+          </div>
           <div class="auth-brand text-center">
             <v-img
               :src="logoSrc"
