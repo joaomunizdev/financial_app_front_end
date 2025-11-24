@@ -18,15 +18,12 @@ export const useAuthStore = defineStore("auth", {
       this.token = data.accessToken;
       this.email = email;
       localStorage.setItem("token", this.token);
-      // Não precisa setar manualmente o header aqui: o interceptor já lê do state
     },
     logout() {
       this.token = "";
       this.email = "";
       localStorage.removeItem("token");
-      // Interceptor não envia Authorization sem token
     },
-    // opcional: carregar token ao iniciar a app
     hydrateFromStorage() {
       const t = localStorage.getItem("token");
       this.token = t || "";

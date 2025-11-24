@@ -57,7 +57,6 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore();
-  // garante estado hidratado (em hard refresh)
   if (!auth.token) auth.hydrateFromStorage();
 
   if (to.meta.auth && !auth.isAuthenticated) return "/login";

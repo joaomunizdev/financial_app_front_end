@@ -82,12 +82,10 @@ const props = defineProps<{
   loading?: boolean;
 }>();
 const emit = defineEmits<{ (e: "submit", value: any): void }>();
-const { formatCurrencyOnType, toNumberBRL, toCurrencyBRL } = useCurrency(); // << Instancie o composable
+const { formatCurrencyOnType, toNumberBRL, toCurrencyBRL } = useCurrency();
 
-// Configuração do VeeValidate
 const { handleSubmit, errors, defineField, meta } = useForm({
   validationSchema: purchaseSchema,
-  // Define os valores iniciais para edição ou criação
   initialValues: {
     id: props.modelValue?.id,
     creditCardId: props.modelValue?.creditCardId ?? "",
@@ -102,7 +100,6 @@ const { handleSubmit, errors, defineField, meta } = useForm({
   },
 });
 
-// Cria refs reativas para cada campo do formulário
 const [creditCardId] = defineField("creditCardId");
 const [tenantId] = defineField("tenantId");
 const [description] = defineField("description");

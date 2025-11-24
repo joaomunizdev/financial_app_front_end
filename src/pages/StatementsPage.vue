@@ -189,10 +189,8 @@ async function fetchCards() {
     creditCardId.value = creditCards.value[0].id;
 }
 
-// estado de filtro atual
 const isFiltered = ref(false);
 
-// carrega TODAS as faturas do cartão (reseta filtro)
 async function load() {
   if (!creditCardId.value) return;
   loading.value = true;

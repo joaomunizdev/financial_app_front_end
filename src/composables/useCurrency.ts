@@ -45,13 +45,10 @@ export function useCurrency() {
     return typeof maxLen === "number" ? s.slice(0, maxLen) : s;
   }
 
-  // === NOVO: máscara em tempo real (interpreta como centavos) ===
   function formatCurrencyOnType(v: string): string {
-    // mantém apenas dígitos
     const onlyDigits = (v ?? "").replace(/\D+/g, "");
-    // valor em centavos: se vazio -> 0; se 1 dígito -> 0,0x; se 2 -> 0,xx; senão -> ...xx
     const cents = onlyDigits === "" ? 0 : parseInt(onlyDigits, 10);
-    const value = cents / 100; // transforma para reais
+    const value = cents / 100;
     return brl.format(isNaN(value) ? 0 : value);
   }
 
@@ -61,6 +58,6 @@ export function useCurrency() {
     sanitizeCurrencyInput,
     formatCurrencyString,
     digitsOnly,
-    formatCurrencyOnType, // << exporta novo helper
+    formatCurrencyOnType,
   };
 }

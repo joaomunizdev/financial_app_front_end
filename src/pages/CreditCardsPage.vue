@@ -80,18 +80,16 @@ import { useCurrency } from "../composables/useCurrency";
 const {
   toNumberBRL,
   toCurrencyBRL,
-  sanitizeCurrencyInput, // (segue disponível caso use em outros lugares)
-  formatCurrencyString, // (ainda útil em edições vindas da API)
   digitsOnly,
-  formatCurrencyOnType, // << novo
+  formatCurrencyOnType,
 } = useCurrency();
 
 const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 const isEditing = ref(false);
-const dialogKey = ref(0); // opcional: remount do modal
-const formRef = ref<any>(null); // para resetar validação do Vuetify
+const dialogKey = ref(0);
+const formRef = ref<any>(null);
 
 const items = ref<any[]>([]);
 const headers = [
@@ -103,8 +101,6 @@ const headers = [
 ];
 
 function onLimitInput(val: string) {
-  // Opcional: se quiser bloquear letras imediatamente:
-  // val = sanitizeCurrencyInput(val);
   form.limitAmount = formatCurrencyOnType(val);
 }
 
@@ -132,7 +128,6 @@ const errors = reactive<Record<keyof FormT | string, string[]>>({
   limitAmount: [],
 });
 
-// schema yup (igual ao que já montamos antes)
 const schema = yup.object({
   id: yup.string().optional(),
   nickname: yup
@@ -161,7 +156,6 @@ const schema = yup.object({
 
 function clearErrors() {
   Object.keys(errors).forEach((k) => (errors[k] = []));
-  // Se usar v-form do Vuetify:
   nextTick(() => formRef.value?.resetValidation?.());
 }
 
@@ -191,17 +185,14 @@ async function validateAll(): Promise<boolean> {
   }
 }
 
-// abrir modal para NOVO cartão (sempre limpo)
 function openNew() {
   isEditing.value = false;
   resetForm();
   clearErrors();
   open.value = true;
-  // opcional: força remount para limpar qualquer resíduo interno
   dialogKey.value++;
 }
 
-// editar cartão (preenche e limpa erros)
 function edit(it: any) {
   isEditing.value = true;
   Object.assign(form, {
@@ -209,26 +200,23 @@ function edit(it: any) {
     nickname: it.nickname ?? "",
     brand: it.brand ?? "",
     last4: digitsOnly(String(it.last4 ?? ""), 4),
-    // exibe formatado ao abrir
     limitAmount: toCurrencyBRL(it.limitAmount ?? "0"),
   });
   clearErrors();
   open.value = true;
 }
 
-// ao fechar o modal (por qualquer motivo), zera tudo
 watch(open, (val) => {
   if (!val) {
     isEditing.value = false;
     resetForm();
     clearErrors();
-    // opcional: remount
     dialogKey.value++;
   }
 });
 
 function onCancel() {
-  open.value = false; // watcher tratará reset
+  open.value = false;
 }
 
 function currencyCell(v: string | number) {
@@ -256,7 +244,7 @@ async function save() {
       nickname: form.nickname.trim(),
       brand: form.brand.trim(),
       last4: form.last4,
-      limitAmount: Number(limit.toFixed(2)), // 1000.00
+      limitAmount: Number(limit.toFixed(2)),
     };
 
     if (form.id) await http.patch(`/credit-cards/${form.id}`, body);

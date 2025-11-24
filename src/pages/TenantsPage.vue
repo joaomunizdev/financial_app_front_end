@@ -130,21 +130,19 @@ async function validateField(field: "name") {
   }
 }
 
-// ---- Abrir NOVO sempre limpo
+
 function openNew() {
   resetForm();
   clearErrors();
   open.value = true;
 }
 
-// ---- Editar: preenche, limpa erros e abre
 function edit(it: any) {
   Object.assign(form, { id: it.id ?? "", name: (it.name ?? "").toString() });
   clearErrors();
   open.value = true;
 }
 
-// ---- Fechar modal: limpa tudo
 function onCancel() {
   open.value = false;
 }
@@ -155,7 +153,6 @@ watch(open, (v) => {
   }
 });
 
-// ---- resto do seu código
 const filtered = computed(() => {
   if (!search.value) return items.value;
   return items.value.filter((x) =>
@@ -183,7 +180,7 @@ async function save() {
       await http.patch(`/tenants/${form.id}`, { name: form.name.trim() });
     else await http.post("/tenants", { name: form.name.trim() });
 
-    open.value = false; // watcher limpa tudo
+    open.value = false;
     await fetchAll();
   } finally {
     saving.value = false;

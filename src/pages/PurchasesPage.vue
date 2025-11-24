@@ -104,10 +104,9 @@ function currency(v: string) {
 }
 
 function formatDateBR(dateString: string) {
-  if (!dateString) return "—"; // Retorna um traço se a data for nula
+  if (!dateString) return "—"; 
 
   const date = new Date(dateString);
-  // Usar timeZone: 'UTC' evita problemas de a data "voltar" um dia
   return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
