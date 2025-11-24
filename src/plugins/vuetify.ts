@@ -6,13 +6,13 @@ import * as directives from "vuetify/directives";
 const lightMinimal: ThemeDefinition = {
   dark: false,
   colors: {
-    primary: "#2E3A59",
-    secondary: "#667085",
+    primary: "#1D4ED8",
+    secondary: "#1E3A8A",
     surface: "#FFFFFF",
-    background: "#F7F8FA",
-    success: "#16A34A",
+    background: "#F3F6FC",
+    success: "#059669",
     warning: "#F59E0B",
-    info: "#0EA5E9",
+    info: "#38BDF8",
     error: "#DC2626",
   },
   variables: {
@@ -23,14 +23,14 @@ const lightMinimal: ThemeDefinition = {
 const darkMinimal: ThemeDefinition = {
   dark: true,
   colors: {
-    primary: "#3B82F6",
-    secondary: "#94A3B8",
-    surface: "#1E293B",
-    background: "#0F172A",
-    success: "#22C55E",
-    warning: "#EAB308",
-    info: "#38BDF8",
-    error: "#EF4444",
+    primary: "#60A5FA",
+    secondary: "#93C5FD",
+    surface: "#0F172A",
+    background: "#020617",
+    success: "#34D399",
+    warning: "#FBBF24",
+    info: "#7DD3FC",
+    error: "#F87171",
   },
   variables: {
     "border-radius": "12px",
