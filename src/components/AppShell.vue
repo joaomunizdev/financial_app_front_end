@@ -1,62 +1,92 @@
 <template>
   <v-app>
-    <v-navigation-drawer
-      v-model="drawer"
-      :rail="isMd"
-      :expand-on-hover="isMd"
-      color="surface"
-      elevation="1"
-      border="0"
-      class="app-drawer"
-    >
-      <v-sheet class="pa-4 text-center" color="transparent">
-        <v-img
-          :src="logoSrc"
-          alt="Financial App Logo"
-          width="140"
-          class="mx-auto mb-2"
-          contain
-        />
-        <div class="text-subtitle-2 text-medium-emphasis">
-          Controle financeiro pessoal
+    <template v-if="isAuthPage">
+      <v-main class="auth-background">
+        <div class="auth-layout px-4">
+          <ThemeSwitcher class="auth-theme-switch-top" />
+          <div class="auth-brand text-center">
+            <v-img
+              :src="logoSrc"
+              alt="Financial App Logo"
+              width="180"
+              class="mb-4 mx-auto"
+              contain
+            />
+            <div class="text-h4 font-weight-bold mb-2">Financial App</div>
+            <div class="text-body-1 text-medium-emphasis">
+              Centralize seus cartões, controle compras e acompanhe faturas em um
+              só lugar.
+            </div>
+          </div>
+          <div class="auth-card-slot">
+            <router-view />
+          </div>
         </div>
-      </v-sheet>
-      <v-divider class="my-2" />
-      <v-list density="comfortable" nav>
-        <v-list-item
-          v-for="item in items"
-          :key="item.to"
-          :to="item.to"
-          :prepend-icon="item.icon"
-          :title="item.title"
-        />
-      </v-list>
-      <template #append>
-        <v-divider />
-        <v-list density="compact">
-          <v-list-item prepend-icon="mdi-logout" title="Sair" @click="logout" />
-        </v-list>
-      </template>
-    </v-navigation-drawer>
-
-    <v-app-bar elevation="0" color="transparent" class="app-toolbar px-4">
-      <v-app-bar-nav-icon @click="drawer = !drawer" />
-      <v-toolbar-title class="text-h6">{{ title }}</v-toolbar-title>
-      <v-spacer />
-      <ThemeSwitcher />
-      <v-btn icon variant="text" class="ml-2"
-        ><v-icon>mdi-bell-outline</v-icon></v-btn
+      </v-main>
+    </template>
+    <template v-else>
+      <v-navigation-drawer
+        v-model="drawer"
+        :rail="isMd"
+        :expand-on-hover="isMd"
+        color="surface"
+        elevation="1"
+        border="0"
+        class="app-drawer"
       >
-      <v-avatar size="36" class="ml-2" color="primary" variant="tonal">
-        <v-icon>mdi-account</v-icon>
-      </v-avatar>
-    </v-app-bar>
+        <v-sheet class="pa-4 text-center" color="transparent">
+          <v-img
+            :src="logoSrc"
+            alt="Financial App Logo"
+            width="140"
+            class="mx-auto mb-2"
+            contain
+          />
+          <div class="text-subtitle-2 text-medium-emphasis">
+            Controle financeiro pessoal
+          </div>
+        </v-sheet>
+        <v-divider class="my-2" />
+        <v-list density="comfortable" nav>
+          <v-list-item
+            v-for="item in items"
+            :key="item.to"
+            :to="item.to"
+            :prepend-icon="item.icon"
+            :title="item.title"
+          />
+        </v-list>
+        <template #append>
+          <v-divider />
+          <v-list density="compact">
+            <v-list-item
+              prepend-icon="mdi-logout"
+              title="Sair"
+              @click="logout"
+            />
+          </v-list>
+        </template>
+      </v-navigation-drawer>
 
-    <v-main class="app-background">
-      <v-container fluid class="py-6 px-6">
-        <router-view />
-      </v-container>
-    </v-main>
+      <v-app-bar elevation="0" color="transparent" class="app-toolbar px-4">
+        <v-app-bar-nav-icon @click="drawer = !drawer" />
+        <v-toolbar-title class="text-h6">{{ title }}</v-toolbar-title>
+        <v-spacer />
+        <ThemeSwitcher />
+        <v-btn icon variant="text" class="ml-2"
+          ><v-icon>mdi-bell-outline</v-icon></v-btn
+        >
+        <v-avatar size="36" class="ml-2" color="primary" variant="tonal">
+          <v-icon>mdi-account</v-icon>
+        </v-avatar>
+      </v-app-bar>
+
+      <v-main class="app-background">
+        <v-container fluid class="py-6 px-6">
+          <router-view />
+        </v-container>
+      </v-main>
+    </template>
 
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
       {{ snackbar.text }}
@@ -111,6 +141,8 @@ const items = [
   { to: "/subscriptions", title: "Assinaturas", icon: "mdi-repeat" },
 ];
 
+const isAuthPage = computed(() => route.meta?.layout === "auth");
+
 const title = computed(() => {
   const m: Record<string, string> = {
     "/dashboard": "Resumo",
@@ -133,6 +165,53 @@ const snackbar = ref({ show: false, text: "", color: "success" });
 </script>
 
 <style scoped>
+.auth-background {
+  min-height: 100vh;
+  background: radial-gradient(
+      circle at 10% 20%,
+      rgba(var(--v-theme-primary), 0.35),
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 90% 0%,
+      rgba(var(--v-theme-secondary), 0.25),
+      transparent 40%
+    ),
+    rgb(var(--v-theme-background));
+}
+
+.auth-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 48px 16px;
+  text-align: center;
+  position: relative;
+}
+
+.auth-brand {
+  max-width: 420px;
+}
+
+.auth-card-slot {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-theme-switch-top {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 5;
+}
+
 .app-background {
   min-height: 100vh;
   background: radial-gradient(

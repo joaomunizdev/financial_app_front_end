@@ -1,8 +1,20 @@
 <template>
-  <div class="d-flex align-center justify-center" style="min-height: 80vh">
-    <v-card width="520" class="pa-6">
-      <div class="text-h6 mb-4">Criar conta</div>
-      <v-form @submit.prevent="onSubmit" v-model="valid">
+  <v-card class="auth-card" elevation="8">
+    <v-card-text>
+      <div class="text-center mb-6">
+        <v-img
+          :src="logoSrc"
+          alt="Financial App Logo"
+          width="120"
+          class="mx-auto mb-3"
+          contain
+        />
+        <div class="text-h5 font-weight-medium">Criar conta</div>
+        <div class="text-body-2 text-medium-emphasis">
+          Cadastre-se para organizar cartões e faturas.
+        </div>
+      </div>
+      <v-form @submit.prevent="onSubmit" v-model="valid" class="d-flex flex-column gap-3">
         <v-text-field
           v-model="name"
           label="Nome completo"
@@ -27,18 +39,19 @@
           >Registrar</v-btn
         >
       </v-form>
-      <div class="text-caption mt-4">
+      <div class="text-caption mt-6 text-center">
         Já possui conta?
         <v-btn variant="text" size="small" @click="$router.push('/login')"
           >Entrar</v-btn
         >
       </div>
-    </v-card>
-  </div>
+    </v-card-text>
+  </v-card>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { useTheme } from "vuetify";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
@@ -47,6 +60,12 @@ const email = ref("");
 const password = ref("");
 const valid = ref(false);
 const loading = ref(false);
+const theme = useTheme();
+const logoSrc = computed(() =>
+  theme.global.current.value.dark
+    ? new URL("../assets/white-logo.png", import.meta.url).href
+    : new URL("../assets/logo.png", import.meta.url).href
+);
 
 async function onSubmit() {
   if (!valid.value) return;
@@ -60,3 +79,11 @@ async function onSubmit() {
   }
 }
 </script>
+
+<style scoped>
+.auth-card {
+  width: min(520px, 100%);
+  border-radius: 24px;
+  overflow: hidden;
+}
+</style>

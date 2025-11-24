@@ -2,8 +2,16 @@ import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 
 const routes = [
-  { path: "/login", component: () => import("../pages/LoginPage.vue") },
-  { path: "/register", component: () => import("../pages/RegisterPage.vue") },
+  {
+    path: "/login",
+    component: () => import("../pages/LoginPage.vue"),
+    meta: { layout: "auth" },
+  },
+  {
+    path: "/register",
+    component: () => import("../pages/RegisterPage.vue"),
+    meta: { layout: "auth" },
+  },
   { path: "/", redirect: "/dashboard" },
   {
     path: "/dashboard",
