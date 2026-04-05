@@ -29,6 +29,16 @@ const routes = [
     meta: { auth: true },
   },
   {
+    path: "/fixed-expenses",
+    component: () => import("../pages/FixedExpensesPage.vue"),
+    meta: { auth: true },
+  },
+  {
+    path: "/income-sources",
+    component: () => import("../pages/IncomeSourcesPage.vue"),
+    meta: { auth: true },
+  },
+  {
     path: "/tenants",
     component: () => import("../pages/TenantsPage.vue"),
     meta: { auth: true },

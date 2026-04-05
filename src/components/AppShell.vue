@@ -140,6 +140,16 @@ const items = [
     icon: "mdi-credit-card-multiple-outline",
   },
   {
+    to: "/fixed-expenses",
+    title: "Despesas fixas",
+    icon: "mdi-cash-minus",
+  },
+  {
+    to: "/income-sources",
+    title: "Fontes de renda",
+    icon: "mdi-cash-plus",
+  },
+  {
     to: "/tenants",
     title: "Responsáveis",
     icon: "mdi-account-multiple-outline",
@@ -156,6 +166,8 @@ const title = computed(() => {
     "/dashboard": "Resumo",
     "/reports": "Relatórios",
     "/credit-cards": "Cartões de Crédito",
+    "/fixed-expenses": "Despesas Fixas",
+    "/income-sources": "Fontes de Renda",
     "/tenants": "Responsáveis",
     "/purchases": "Compras",
     "/statements": "Faturas",

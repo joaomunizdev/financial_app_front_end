@@ -91,7 +91,7 @@
           </div>
           <v-select
             v-model="exportDlg.tenantId"
-            :items="tenants"
+            :items="tenantOptions"
             item-title="name"
             item-value="id"
             label="Responsável"
@@ -101,7 +101,7 @@
           />
           <v-select
             v-model="exportDlg.statementId"
-            :items="exportDlg.statements"
+            :items="statementOptions"
             :loading="exportDlg.loading"
             item-title="label"
             item-value="id"
@@ -168,6 +168,16 @@ const headers = [
   { title: "Responsável", key: "tenantName" },
   { title: "Total", key: "totalAmount", align: "end" as const },
 ];
+
+const tenantOptions = computed(() => [
+  { id: "", name: "Selecione" },
+  ...tenants.value,
+]);
+
+const statementOptions = computed(() => [
+  { id: "", label: "Selecione" },
+  ...exportDlg.statements,
+]);
 
 const activeStatementLabel = computed(() => {
   if (!statementId.value) return "";
@@ -239,7 +249,7 @@ async function openExportDialog() {
     tenants.value = (await http.get("/tenants")).data || [];
   }
   exportDlg.open = true;
-  exportDlg.tenantId = tenants.value[0]?.id || "";
+  exportDlg.tenantId = "";
   exportDlg.statements = [];
   exportDlg.statementId = "";
   await loadExportStatements();
@@ -282,7 +292,7 @@ async function loadExportStatements() {
       }
     });
     exportDlg.statements = Array.from(grouped.values()).sort((a, b) =>
-      b.label.localeCompare(a.label)
+      b.year - a.year || b.month - a.month
     );
   } finally {
     exportDlg.loading = false;

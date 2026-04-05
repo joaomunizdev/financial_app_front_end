@@ -10,6 +10,8 @@ export const REQUEST_DELAY_MS = 900;
 const ENTITY_MATCHERS: Array<{ matcher: RegExp; entity: string }> = [
   { matcher: /\/purchases\b/i, entity: "Compra" },
   { matcher: /\/credit-cards\b/i, entity: "Cartão" },
+  { matcher: /\/fixed-expenses\b/i, entity: "Despesa fixa" },
+  { matcher: /\/income-sources\b/i, entity: "Fonte de renda" },
   { matcher: /\/tenants\b/i, entity: "Responsável" },
   { matcher: /\/auth\/register\b/i, entity: "Usuário" },
   { matcher: /\/users\b/i, entity: "Usuário" },

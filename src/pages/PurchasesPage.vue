@@ -142,8 +142,10 @@ async function loadPurchases() {
 async function save(payload: any) {
   saving.value = true;
   try {
-    if (payload.id) await http.patch(`/purchases/${payload.id}`, payload);
-    else await http.post("/purchases", payload);
+    const { id, ...body } = payload;
+
+    if (id) await http.patch(`/purchases/${id}`, body);
+    else await http.post("/purchases", body);
     open.value = false;
     form.value = null;
     await loadPurchases();
