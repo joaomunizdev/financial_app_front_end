@@ -185,18 +185,20 @@ function currency(v: string | number) {
 
 async function fetchCards() {
   creditCards.value = (await http.get("/credit-cards")).data || [];
-  if (!creditCardId.value && creditCards.value.length)
-    creditCardId.value = creditCards.value[0].id;
 }
 
 const isFiltered = ref(false);
 
 async function load() {
-  if (!creditCardId.value) return;
   loading.value = true;
   try {
+    const params: Record<string, any> = {
+      year: year.value,
+      month: month.value,
+    };
+    if (creditCardId.value) params.creditCardId = creditCardId.value;
     const res = await http.get("/statements", {
-      params: { creditCardId: creditCardId.value },
+      params,
     });
     items.value = res.data || [];
     isFiltered.value = false;
@@ -210,19 +212,20 @@ async function clearFilter() {
 }
 
 async function findByPeriod() {
-  if (!creditCardId.value) return;
   loading.value = true;
   try {
+    const params: Record<string, any> = {
+      year: year.value,
+      month: month.value,
+    };
+    if (creditCardId.value) params.creditCardId = creditCardId.value;
+
     const st = (
       await http.get("/statements", {
-        params: {
-          creditCardId: creditCardId.value,
-          year: year.value,
-          month: month.value,
-        },
+        params,
       })
     ).data;
-    items.value = [st];
+    items.value = Array.isArray(st) ? st : [st];
     isFiltered.value = true;
   } catch (e: any) {
     if (e?.response?.status === 404) {

@@ -4,7 +4,7 @@
       <div>
         <div class="text-h5">Relatórios</div>
         <div class="text-body-2 text-medium-emphasis">
-          Filtre por cartão ou período para analisar os valores consolidados.
+          Filtre por mês e ano para analisar os valores consolidados.
         </div>
       </div>
       <div class="reports-actions">
@@ -14,7 +14,7 @@
           variant="flat"
           @click="openExportDialog"
         >
-          Exportar PDF
+          Exportar PDF Completo
         </v-btn>
         <v-btn
           variant="tonal"
@@ -29,12 +29,11 @@
 
     <FilterBar
       class="mt-2"
-      :cards="cards"
-      :statements="statements"
-      :model-value-card-id="creditCardId"
-      :model-value-statement-id="statementId"
-      @update:cardId="onCardChange"
-      @update:statementId="(v) => (statementId = v)"
+      :months="months"
+      :model-value-year="year"
+      :model-value-month="month"
+      @update:year="(v) => (year = v)"
+      @update:month="(v) => (month = v)"
       @apply="fetchAll"
       @clear="clearFilter"
     />
@@ -66,13 +65,8 @@
     <v-card class="reports-table-card">
       <v-card-title class="d-flex align-center justify-space-between">
         Totais por responsável
-        <v-chip
-          v-if="activeStatementLabel"
-          color="primary"
-          variant="tonal"
-          size="small"
-        >
-          {{ activeStatementLabel }}
+        <v-chip color="primary" variant="tonal" size="small">
+          {{ String(month).padStart(2, "0") }}/{{ year }}
         </v-chip>
       </v-card-title>
       <v-data-table
@@ -143,10 +137,14 @@ const loading = ref(false);
 const cards = ref<any[]>([]);
 const tenants = ref<any[]>([]);
 const byTenant = ref<any[]>([]);
-const statements = ref<any[]>([]);
-const creditCardId = ref("");
-const statementId = ref("");
 const globalTotal = ref(0);
+const now = new Date();
+const year = ref(now.getFullYear());
+const month = ref(now.getMonth() + 1);
+const months = Array.from({ length: 12 }, (_, i) => ({
+  label: new Date(2000, i, 1).toLocaleString("pt-BR", { month: "long" }),
+  value: i + 1,
+}));
 
 const exportDlg = reactive<{
   open: boolean;
@@ -166,7 +164,7 @@ const exportDlg = reactive<{
 
 const headers = [
   { title: "Responsável", key: "tenantName" },
-  { title: "Total", key: "totalAmount", align: "end" as const },
+  { title: "Total", key: "reportExpensesTotal", align: "end" as const },
 ];
 
 const tenantOptions = computed(() => [
@@ -179,11 +177,6 @@ const statementOptions = computed(() => [
   ...exportDlg.statements,
 ]);
 
-const activeStatementLabel = computed(() => {
-  if (!statementId.value) return "";
-  return statements.value.find((s) => s.id === statementId.value)?.periodLabel;
-});
-
 function currency(v: string | number) {
   const n = Number(v || 0);
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -191,56 +184,36 @@ function currency(v: string | number) {
 
 async function loadCards() {
   cards.value = (await http.get("/credit-cards")).data || [];
-  if (!creditCardId.value && cards.value.length) {
-    creditCardId.value = cards.value[0].id;
-    await loadStatements();
-  }
-}
-
-async function loadStatements() {
-  statements.value = [];
-  statementId.value = "";
-  if (!creditCardId.value) return;
-  const list =
-    (
-      await http.get("/statements", {
-        params: { creditCardId: creditCardId.value },
-      })
-    ).data || [];
-  statements.value = list.map((s: any) => ({
-    ...s,
-    periodLabel: `${String(s.month).padStart(2, "0")}/${s.year}`,
-  }));
-  if (statements.value.length) statementId.value = statements.value[0].id;
 }
 
 async function fetchAll() {
   loading.value = true;
   try {
-    const params = statementId.value ? { statementId: statementId.value } : {};
-    const [g, t, tn] = await Promise.all([
-      http.get("/reports/global", { params }),
+    const params = { year: year.value, month: month.value };
+    const [t, tn] = await Promise.all([
       http.get("/reports/by-tenant", { params }),
       http.get("/tenants"),
     ]);
-    globalTotal.value = Number(g.data.totalAmount || g.data?.totalamount || 0);
-    byTenant.value = (t.data || []).map((x: any) => ({
+    const filtered = (t.data || []).filter(
+      (x: any) => Number(x.reportExpensesTotal || 0) !== 0
+    );
+    byTenant.value = filtered.map((x: any) => ({
       ...x,
-      totalAmount: currency(x.totalAmount || x.totalamount),
+      reportExpensesTotal: currency(x.reportExpensesTotal || 0),
     }));
+    globalTotal.value = filtered.reduce(
+      (sum: number, item: any) => sum + Number(item.reportExpensesTotal || 0),
+      0
+    );
     tenants.value = tn.data || [];
   } finally {
     loading.value = false;
   }
 }
 
-async function onCardChange(v: string) {
-  creditCardId.value = v;
-  await loadStatements();
-}
-
 async function clearFilter() {
-  statementId.value = "";
+  year.value = now.getFullYear();
+  month.value = now.getMonth() + 1;
   await fetchAll();
 }
 

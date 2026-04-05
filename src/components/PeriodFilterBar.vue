@@ -6,10 +6,11 @@
   >
     <v-select
       v-model="localCardId"
-      :items="cards"
+      :items="cardOptions"
       item-title="nickname"
       item-value="id"
       label="Cartão"
+      clearable
       density="comfortable"
       variant="outlined"
       hide-details
@@ -47,7 +48,11 @@
       Buscar fatura
     </v-btn>
 
-    <v-btn prepend-icon="mdi-file-plus-outline" @click="$emit('generate')">
+    <v-btn
+      prepend-icon="mdi-file-plus-outline"
+      :disabled="!localCardId"
+      @click="$emit('generate')"
+    >
       Gerar fatura
     </v-btn>
 
@@ -62,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 const props = defineProps<{
   cards: any[];
@@ -84,6 +89,10 @@ const emit = defineEmits<{
 const localCardId = ref(props.modelValueCardId || "");
 const localYear = ref(props.modelValueYear || new Date().getFullYear());
 const localMonth = ref(props.modelValueMonth || new Date().getMonth() + 1);
+const cardOptions = computed(() => [
+  { id: "", nickname: "Selecione" },
+  ...props.cards,
+]);
 
 watch(localCardId, (v) => emit("update:cardId", v));
 watch(localYear, (v) => emit("update:year", Number(v)));
@@ -121,8 +130,8 @@ watch(
   (list) => {
     if (!list?.length) return;
     const exists = list.some((card) => card.id === localCardId.value);
-    if (!exists) {
-      localCardId.value = props.modelValueCardId || list[0].id;
+    if (!exists && localCardId.value) {
+      localCardId.value = props.modelValueCardId || "";
     }
   },
   { immediate: true, deep: true }
