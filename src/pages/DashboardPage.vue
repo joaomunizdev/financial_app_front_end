@@ -1,39 +1,5 @@
 <template>
   <div class="dashboard-page">
-    <v-sheet class="pa-6 rounded-xl dashboard-hero" color="surface" elevation="1">
-      <div
-        class="d-flex flex-column flex-md-row align-center gap-6 justify-space-between"
-      >
-        <div class="flex-grow-1">
-          <div class="text-body-2 text-medium-emphasis mb-1">
-            Total global atualizado
-          </div>
-          <div class="text-h3 font-weight-bold">
-            {{ currency(globalTotal) }}
-          </div>
-          <div class="text-body-2 text-medium-emphasis">
-            {{ lastUpdatedLabel }}
-          </div>
-        </div>
-        <div class="flex-grow-1 w-100">
-          <div class="text-body-2 text-medium-emphasis mb-1">
-            Limite combinado
-          </div>
-          <div class="text-h5">{{ currency(totalLimit) }}</div>
-          <v-progress-linear
-            class="mt-2"
-            rounded
-            height="8"
-            :model-value="utilization"
-            color="primary"
-          />
-          <div class="text-body-2 text-medium-emphasis mt-1">
-            Utilizado {{ utilization.toFixed(0) }}%
-          </div>
-        </div>
-      </div>
-    </v-sheet>
-
     <v-row class="dashboard-stats-row">
       <v-col cols="12" md="4">
         <StatCard
@@ -125,33 +91,18 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
 import { http } from "../stores/auth";
 import StatCard from "../components/StatCard.vue";
 
-const router = useRouter();
 const loading = ref(false);
 const cards = ref<any[]>([]);
 const tenants = ref<any[]>([]);
-const globalTotal = ref(0);
-const lastUpdated = ref("");
 
 const totalLimit = computed(() =>
   cards.value.reduce((sum, card) => {
     const limit = Number(card.limitAmount ?? card.limitamount ?? 0);
     return sum + (isNaN(limit) ? 0 : limit);
   }, 0)
-);
-
-const utilization = computed(() => {
-  if (!totalLimit.value) return 0;
-  return Math.min(100, (globalTotal.value / totalLimit.value) * 100);
-});
-
-const lastUpdatedLabel = computed(() =>
-  lastUpdated.value
-    ? `Atualizado em ${lastUpdated.value}`
-    : "Carregando..."
 );
 
 function currency(v: string | number) {
@@ -169,17 +120,12 @@ function cardSubtitle(card: any) {
 async function fetchDashboard() {
   loading.value = true;
   try {
-    const [cardRes, tenantRes, globalRes] = await Promise.all([
+    const [cardRes, tenantRes] = await Promise.all([
       http.get("/credit-cards"),
       http.get("/tenants"),
-      http.get("/reports/global"),
     ]);
     cards.value = cardRes.data || [];
     tenants.value = tenantRes.data || [];
-    globalTotal.value = Number(
-      globalRes.data.totalAmount ?? globalRes.data?.totalamount ?? 0
-    );
-    lastUpdated.value = new Date().toLocaleString("pt-BR");
   } finally {
     loading.value = false;
   }
@@ -187,10 +133,6 @@ async function fetchDashboard() {
 
 function refresh() {
   fetchDashboard();
-}
-
-function goToReports() {
-  router.push("/reports");
 }
 
 onMounted(fetchDashboard);
@@ -201,15 +143,6 @@ onMounted(fetchDashboard);
   display: flex;
   flex-direction: column;
   gap: 32px;
-}
-
-.dashboard-hero {
-  background: linear-gradient(
-      145deg,
-      rgba(var(--v-theme-primary), 0.2),
-      rgba(var(--v-theme-secondary), 0.12)
-    ),
-    rgb(var(--v-theme-surface));
 }
 
 .dashboard-stats-row,
