@@ -1,8 +1,9 @@
-version: "3.9"
 services:
   frontend:
-    build: ./
-    environment:
-      VITE_API_URL: http://localhost:3000/api
+    build:
+      context: .
+      args:
+        # Build-time value: rebuild the image after changing it.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
     ports:
-      - "5173:5173"
+      - "5173:80"

@@ -1,7 +1,5 @@
 import "vuetify/styles";
 import { createVuetify, ThemeDefinition } from "vuetify";
-import * as components from "vuetify/components";
-import * as directives from "vuetify/directives";
 
 const lightMinimal: ThemeDefinition = {
   dark: false,
@@ -37,9 +35,8 @@ const darkMinimal: ThemeDefinition = {
   },
 };
 
+// Components and directives are imported on demand by vite-plugin-vuetify (autoImport).
 export const vuetify = createVuetify({
-  components,
-  directives,
   theme: {
     defaultTheme: "lightMinimal",
     themes: { lightMinimal, darkMinimal },
