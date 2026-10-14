@@ -60,13 +60,19 @@
       </v-navigation-drawer>
 
       <v-app-bar elevation="0" color="transparent" class="app-toolbar px-4">
-        <v-app-bar-nav-icon @click="drawer = !drawer" />
+        <v-app-bar-nav-icon aria-label="Alternar menu" @click="drawer = !drawer" />
         <v-toolbar-title class="text-h6">{{ title }}</v-toolbar-title>
         <v-spacer />
         <ThemeSwitcher />
         <v-menu>
           <template #activator="{ props }">
-            <v-btn icon variant="text" class="ml-2" v-bind="props">
+            <v-btn
+              icon
+              variant="text"
+              class="ml-2"
+              aria-label="Menu da conta"
+              v-bind="props"
+            >
               <v-avatar size="36" color="primary" variant="tonal">
                 <v-icon>mdi-account</v-icon>
               </v-avatar>
@@ -90,7 +96,8 @@
     </template>
 
     <v-snackbar
-      v-model="toast.visible"
+      :model-value="toast.visible"
+      @update:model-value="(open) => !open && toast.hide()"
       :color="toast.color"
       :timeout="toast.timeout"
       location="bottom right"
@@ -98,6 +105,8 @@
     >
       {{ toast.message }}
     </v-snackbar>
+
+    <ConfirmDialog />
   </v-app>
 </template>
 
@@ -107,7 +116,8 @@ import { useRoute } from "vue-router";
 import { useDisplay } from "vuetify";
 import { useTheme } from "vuetify";
 import { useAuthStore } from "../stores/auth";
-import ThemeSwitcher from "../components/ThemeSwitcher.vue";
+import ThemeSwitcher from "./ThemeSwitcher.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 import { useToastStore } from "../stores/toast";
 
 const theme = useTheme();
