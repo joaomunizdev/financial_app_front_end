@@ -1,6 +1,6 @@
 <template>
   <v-sheet
-    class="pa-3 rounded-xl d-flex flex-wrap align-center gap-3"
+    class="pa-3 rounded-xl d-flex flex-wrap align-center ga-3"
     color="surface"
     elevation="1"
   >
@@ -22,6 +22,8 @@
       v-model.number="localYear"
       type="number"
       label="Ano"
+      :min="MIN_YEAR"
+      :max="MAX_YEAR"
       density="comfortable"
       variant="outlined"
       hide-details
@@ -67,9 +69,11 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { MIN_YEAR, MAX_YEAR, isValidYear } from "../utils/date";
+import type { CreditCard } from "../types/domain";
 
 const props = defineProps<{
-  cards: any[];
+  cards: CreditCard[];
   months: { label: string; value: number }[];
   modelValueCardId?: string;
   modelValueYear?: number;
@@ -85,7 +89,7 @@ const emit = defineEmits<{
   (e: "clear"): void;
 }>();
 
-const localCardId = ref(props.modelValueCardId || "");
+const localCardId = ref<string | null>(props.modelValueCardId || "");
 const localYear = ref(props.modelValueYear || new Date().getFullYear());
 const localMonth = ref(props.modelValueMonth || new Date().getMonth() + 1);
 const cardOptions = computed(() => [
@@ -93,8 +97,12 @@ const cardOptions = computed(() => [
   ...props.cards,
 ]);
 
-watch(localCardId, (v) => emit("update:cardId", v));
-watch(localYear, (v) => emit("update:year", Number(v)));
+// The clearable select sets null; the parent always receives a string ("" = all cards).
+watch(localCardId, (v) => emit("update:cardId", v ?? ""));
+// An empty or out-of-range year is not propagated (the API accepts 2000–2100).
+watch(localYear, (v) => {
+  if (isValidYear(v)) emit("update:year", v);
+});
 watch(localMonth, (v) => emit("update:month", Number(v)));
 
 watch(

@@ -77,5 +77,3 @@ export const useAuthStore = defineStore("auth", {
     },
   },
 });
-
-export { default as http } from "../plugins/http";

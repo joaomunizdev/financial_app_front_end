@@ -7,24 +7,22 @@
           Bem-vindo de volta! Acesse sua conta.
         </div>
       </div>
-      <v-form
-        @submit.prevent="onSubmit"
-        v-model="valid"
-        class="d-flex flex-column gap-3"
-      >
+      <v-form @submit.prevent="onSubmit" class="d-flex flex-column ga-3">
         <v-text-field
-          v-model="email"
+          v-model="form.email"
           label="E-mail"
           type="email"
+          autocomplete="email"
           prepend-inner-icon="mdi-email-outline"
-          required
+          :error-messages="errors.email"
         />
         <v-text-field
-          v-model="password"
+          v-model="form.password"
           label="Senha"
           type="password"
+          autocomplete="current-password"
           prepend-inner-icon="mdi-lock-outline"
-          required
+          :error-messages="errors.password"
         />
         <v-btn :loading="loading" block class="mt-2" type="submit"
           >Entrar</v-btn
@@ -41,27 +39,38 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useTheme } from "vuetify";
+import { reactive, ref } from "vue";
+import * as yup from "yup";
 import { useAuthStore } from "../stores/auth";
+import { useFormErrors } from "../composables/useFormErrors";
 
 const auth = useAuthStore();
-const email = ref("admin@example.com");
-const password = ref("Admin@123");
+const form = reactive({ email: "", password: "" });
 const loading = ref(false);
-const valid = ref(false);
-const theme = useTheme();
-const logoSrc = computed(() =>
-  theme.global.current.value.dark
-    ? new URL("../assets/white-logo.png", import.meta.url).href
-    : new URL("../assets/logo.png", import.meta.url).href
-);
+
+// Mirrors the backend LoginDto (IsEmail, MinLength(6)).
+const schema = yup.object({
+  email: yup
+    .string()
+    .trim()
+    .required("E-mail é obrigatório")
+    .email("Informe um e-mail válido"),
+  password: yup
+    .string()
+    .required("Senha é obrigatória")
+    .min(6, "A senha deve ter pelo menos 6 caracteres"),
+});
+
+const { errors, validateAll } = useFormErrors(schema, [
+  "email",
+  "password",
+] as const);
 
 async function onSubmit() {
-  if (!valid.value) return;
+  if (!(await validateAll(form))) return;
   loading.value = true;
   try {
-    await auth.login(email.value, password.value);
+    await auth.login(form.email.trim(), form.password);
     location.assign("/dashboard");
   } finally {
     loading.value = false;

@@ -1,6 +1,6 @@
 <template>
   <div class="reports-page">
-    <div class="d-flex flex-wrap align-center justify-space-between gap-2 mt-2">
+    <div class="d-flex flex-wrap align-center justify-space-between ga-2 mt-2">
       <div>
         <div class="text-h5">Relatórios</div>
         <div class="text-body-2 text-medium-emphasis">
@@ -37,7 +37,7 @@
 
     <FilterBar
       class="mt-2"
-      :months="months"
+      :months="MONTHS"
       :model-value-year="year"
       :model-value-month="month"
       @update:year="(v) => (year = v)"
@@ -50,7 +50,7 @@
       <v-col cols="12" md="4">
         <StatCard
           label="Total filtrado"
-          :value="currency(globalTotal)"
+          :value="toCurrencyBRL(globalTotal)"
           icon="mdi-cash-multiple"
         />
       </v-col>
@@ -74,7 +74,7 @@
       <v-card-title class="d-flex align-center justify-space-between">
         Totais por responsável
         <v-chip color="primary" variant="tonal" size="small">
-          {{ String(month).padStart(2, "0") }}/{{ year }}
+          {{ formatPeriod(year, month) }}
         </v-chip>
       </v-card-title>
       <v-data-table
@@ -82,7 +82,11 @@
         :headers="headers"
         :loading="loading"
         class="pa-2"
-      />
+      >
+        <template #item.reportExpensesTotal="{ item }">{{
+          toCurrencyBRL(item.reportExpensesTotal)
+        }}</template>
+      </v-data-table>
     </v-card>
     <v-dialog v-model="installmentsDlg.open" max-width="560">
       <v-card>
@@ -94,8 +98,6 @@
             item-title="nickname"
             item-value="id"
             label="Cartão"
-            variant="outlined"
-            density="comfortable"
             prepend-inner-icon="mdi-credit-card-outline"
           />
           <v-select
@@ -104,8 +106,6 @@
             item-title="name"
             item-value="id"
             label="Responsável"
-            variant="outlined"
-            density="comfortable"
             prepend-inner-icon="mdi-account-outline"
           />
           <v-row>
@@ -114,19 +114,17 @@
                 v-model.number="installmentsDlg.year"
                 type="number"
                 label="Ano"
-                variant="outlined"
-                density="comfortable"
+                :min="MIN_YEAR"
+                :max="MAX_YEAR"
               />
             </v-col>
             <v-col cols="12" sm="6">
               <v-select
                 v-model.number="installmentsDlg.month"
-                :items="months"
+                :items="MONTHS"
                 item-title="label"
                 item-value="value"
                 label="Mês"
-                variant="outlined"
-                density="comfortable"
               />
             </v-col>
           </v-row>
@@ -136,15 +134,23 @@
             color="surface-variant"
           >
             <div class="text-caption text-medium-emphasis">Total</div>
-            <div class="text-h5">{{ currency(installmentsDlg.totalAmount) }}</div>
+            <div class="text-h5">
+              {{ toCurrencyBRL(installmentsDlg.totalAmount) }}
+            </div>
           </v-sheet>
         </v-card-text>
         <v-card-actions class="justify-end">
-          <v-btn variant="text" @click="installmentsDlg.open = false">Fechar</v-btn>
+          <v-btn variant="text" @click="installmentsDlg.open = false"
+            >Fechar</v-btn
+          >
           <v-btn
             color="primary"
             :loading="installmentsDlg.loading"
-            :disabled="!installmentsDlg.creditCardId || !installmentsDlg.tenantId"
+            :disabled="
+              !installmentsDlg.creditCardId ||
+              !installmentsDlg.tenantId ||
+              !isValidYear(installmentsDlg.year)
+            "
             @click="fetchInstallmentsTotal"
           >
             Consultar
@@ -165,33 +171,35 @@
             item-title="name"
             item-value="id"
             label="Responsáveis"
-            variant="outlined"
-            density="comfortable"
             prepend-inner-icon="mdi-account"
             multiple
             chips
             closable-chips
           />
           <v-select
-            v-model="exportDlg.statementIds"
-            :items="exportDlg.statements"
+            v-model="exportDlg.periodIds"
+            :items="exportDlg.periods"
             :loading="exportDlg.loading"
             item-title="label"
             item-value="id"
             label="Faturas (Períodos)"
-            variant="outlined"
-            density="comfortable"
             prepend-inner-icon="mdi-calendar-month-outline"
-            :disabled="exportDlg.loading || exportDlg.statements.length === 0"
+            :disabled="exportDlg.loading || exportDlg.periods.length === 0"
             multiple
             chips
             closable-chips
           />
           <div
-            v-if="!exportDlg.loading && exportDlg.statements.length === 0"
+            v-if="!exportDlg.loading && exportDlg.periods.length === 0"
             class="mt-2 text-medium-emphasis"
           >
             Nenhuma fatura encontrada. Gere uma fatura antes de exportar.
+          </div>
+          <div
+            v-if="exportDlg.downloading && exportTotal > 1"
+            class="mt-2 text-body-2"
+          >
+            Baixando {{ exportDlg.done }} de {{ exportTotal }}…
           </div>
         </v-card-text>
         <v-card-actions class="justify-end">
@@ -199,7 +207,7 @@
           <v-btn
             color="primary"
             :loading="exportDlg.downloading"
-            :disabled="!exportDlg.statementIds.length || !exportDlg.tenantIds.length"
+            :disabled="!exportDlg.periodIds.length || !exportDlg.tenantIds.length"
             @click="exportPdfReport"
             >Exportar {{ exportTotal || "" }}</v-btn
           >
@@ -213,20 +221,39 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import FilterBar from "../components/FilterBar.vue";
 import StatCard from "../components/StatCard.vue";
-import { http } from "../stores/auth";
+import http from "../plugins/http";
+import { useCurrency } from "../composables/useCurrency";
+import { useToastStore } from "../stores/toast";
+import { withDetail } from "../utils/api-error";
+import {
+  MONTHS,
+  MIN_YEAR,
+  MAX_YEAR,
+  formatPeriod,
+  isValidYear,
+} from "../utils/date";
+import type {
+  CreditCard,
+  Statement,
+  Tenant,
+  TenantReport,
+} from "../types/domain";
+
+type ExportPeriod = { id: string; label: string; year: number; month: number };
+type TenantReportRow = Omit<TenantReport, "reportExpensesTotal"> & {
+  reportExpensesTotal: number;
+};
+
+const { toCurrencyBRL } = useCurrency();
+const toast = useToastStore();
 
 const loading = ref(false);
-const cards = ref<any[]>([]);
-const tenants = ref<any[]>([]);
-const byTenant = ref<any[]>([]);
-const globalTotal = ref(0);
+const cards = ref<CreditCard[]>([]);
+const tenants = ref<Tenant[]>([]);
+const byTenant = ref<TenantReportRow[]>([]);
 const now = new Date();
 const year = ref(now.getFullYear());
 const month = ref(now.getMonth() + 1);
-const months = Array.from({ length: 12 }, (_, i) => ({
-  label: new Date(2000, i, 1).toLocaleString("pt-BR", { month: "long" }),
-  value: i + 1,
-}));
 
 const installmentsDlg = reactive({
   open: false,
@@ -238,20 +265,14 @@ const installmentsDlg = reactive({
   loading: false,
 });
 
-const exportDlg = reactive<{
-  open: boolean;
-  tenantIds: string[];
-  statements: Array<{ id: string; label: string; year: number; month: number }>;
-  statementIds: string[];
-  loading: boolean;
-  downloading: boolean;
-}>({
+const exportDlg = reactive({
   open: false,
-  tenantIds: [],
-  statements: [],
-  statementIds: [],
+  tenantIds: [] as string[],
+  periods: [] as ExportPeriod[],
+  periodIds: [] as string[],
   loading: false,
   downloading: false,
+  done: 0,
 });
 
 const headers = [
@@ -260,37 +281,31 @@ const headers = [
 ];
 
 const exportTotal = computed(
-  () => exportDlg.tenantIds.length * exportDlg.statementIds.length
+  () => exportDlg.tenantIds.length * exportDlg.periodIds.length
 );
 
-function currency(v: string | number) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+// Sum of the visible rows (tenants with a non-zero total).
+const globalTotal = computed(() =>
+  byTenant.value.reduce((sum, item) => sum + item.reportExpensesTotal, 0)
+);
 
 async function loadCards() {
-  cards.value = (await http.get("/credit-cards")).data || [];
+  cards.value = (await http.get<CreditCard[]>("/credit-cards")).data || [];
 }
 
 async function fetchAll() {
+  if (!isValidYear(year.value)) return;
   loading.value = true;
   try {
     const params = { year: year.value, month: month.value };
     const [t, tn] = await Promise.all([
-      http.get("/reports/by-tenant", { params }),
-      http.get("/tenants"),
+      http.get<TenantReport[]>("/reports/by-tenant", { params }),
+      http.get<Tenant[]>("/tenants"),
     ]);
-    const filtered = (t.data || []).filter(
-      (x: any) => Number(x.reportExpensesTotal || 0) !== 0
-    );
-    byTenant.value = filtered.map((x: any) => ({
-      ...x,
-      reportExpensesTotal: currency(x.reportExpensesTotal || 0),
-    }));
-    globalTotal.value = filtered.reduce(
-      (sum: number, item: any) => sum + Number(item.reportExpensesTotal || 0),
-      0
-    );
+    // Kept numeric so the column sorts by value; formatted in the item slot.
+    byTenant.value = (t.data || [])
+      .map((x) => ({ ...x, reportExpensesTotal: Number(x.reportExpensesTotal || 0) }))
+      .filter((x) => x.reportExpensesTotal !== 0);
     tenants.value = tn.data || [];
   } finally {
     loading.value = false;
@@ -315,14 +330,17 @@ function openInstallmentsDialog() {
 async function fetchInstallmentsTotal() {
   installmentsDlg.loading = true;
   try {
-    const { data } = await http.get("/reports/installments-total", {
-      params: {
-        creditCardId: installmentsDlg.creditCardId,
-        tenantId: installmentsDlg.tenantId,
-        year: installmentsDlg.year,
-        month: installmentsDlg.month,
-      },
-    });
+    const { data } = await http.get<{ totalAmount: string }>(
+      "/reports/installments-total",
+      {
+        params: {
+          creditCardId: installmentsDlg.creditCardId,
+          tenantId: installmentsDlg.tenantId,
+          year: installmentsDlg.year,
+          month: installmentsDlg.month,
+        },
+      }
+    );
     installmentsDlg.totalAmount = data?.totalAmount || "0.00";
   } finally {
     installmentsDlg.loading = false;
@@ -331,54 +349,41 @@ async function fetchInstallmentsTotal() {
 
 async function openExportDialog() {
   if (!tenants.value.length) {
-    tenants.value = (await http.get("/tenants")).data || [];
+    tenants.value = (await http.get<Tenant[]>("/tenants")).data || [];
   }
   exportDlg.open = true;
   exportDlg.tenantIds = [];
-  exportDlg.statements = [];
-  exportDlg.statementIds = [];
-  await loadExportStatements();
+  exportDlg.periods = [];
+  exportDlg.periodIds = [];
+  await loadExportPeriods();
 }
 
 function closeExportDialog() {
   exportDlg.open = false;
   exportDlg.tenantIds = [];
-  exportDlg.statements = [];
-  exportDlg.statementIds = [];
+  exportDlg.periods = [];
+  exportDlg.periodIds = [];
 }
 
-async function loadExportStatements() {
+/** Distinct MM/YYYY periods that have at least one statement (any card). */
+async function loadExportPeriods() {
   exportDlg.loading = true;
   try {
-    if (!cards.value.length) {
-      const res = await http.get("/credit-cards");
-      cards.value = res.data || [];
-    }
-    const lists = await Promise.all(
-      cards.value.map(async (card: any) => {
-        const { data } = await http.get("/statements", {
-          params: { creditCardId: card.id },
-        });
-        return (Array.isArray(data) ? data : []).map((s: any) => ({
-          year: s.year,
-          month: s.month,
-        }));
-      })
-    );
-    const grouped = new Map<string, { id: string; label: string; year: number; month: number }>();
-    lists.flat().forEach((stmt) => {
-      const key = `${String(stmt.month).padStart(2, "0")}/${stmt.year}`;
+    const { data } = await http.get<Statement[]>("/statements");
+    const grouped = new Map<string, ExportPeriod>();
+    for (const st of Array.isArray(data) ? data : []) {
+      const key = formatPeriod(st.year, st.month);
       if (!grouped.has(key)) {
         grouped.set(key, {
           id: key,
           label: `Fatura - ${key}`,
-          year: stmt.year,
-          month: stmt.month,
+          year: st.year,
+          month: st.month,
         });
       }
-    });
-    exportDlg.statements = Array.from(grouped.values()).sort((a, b) =>
-      b.year - a.year || b.month - a.month
+    }
+    exportDlg.periods = Array.from(grouped.values()).sort(
+      (a, b) => b.year - a.year || b.month - a.month
     );
   } finally {
     exportDlg.loading = false;
@@ -386,41 +391,57 @@ async function loadExportStatements() {
 }
 
 async function exportPdfReport() {
-  if (!exportDlg.statementIds.length || !exportDlg.tenantIds.length) return;
+  const selectedPeriods = exportDlg.periods.filter((p) =>
+    exportDlg.periodIds.includes(p.id)
+  );
+  const selectedTenants = tenants.value.filter((t) =>
+    exportDlg.tenantIds.includes(t.id)
+  );
+  if (!selectedPeriods.length || !selectedTenants.length) return;
+
   exportDlg.downloading = true;
+  exportDlg.done = 0;
+  const failures: string[] = [];
+  let firstError: unknown = null;
   try {
-    const selectedStatements = exportDlg.statements.filter((statement) =>
-      exportDlg.statementIds.includes(statement.id)
-    );
-    const selectedTenants = tenants.value.filter((tenant) =>
-      exportDlg.tenantIds.includes(tenant.id)
-    );
-    if (
-      selectedStatements.length !== exportDlg.statementIds.length ||
-      selectedTenants.length !== exportDlg.tenantIds.length
-    ) {
-      throw new Error("Dados inválidos");
-    }
-
+    // Sequential on purpose: browsers may block many simultaneous downloads.
     for (const tenant of selectedTenants) {
-      for (const statement of selectedStatements) {
-        const resp = await http.get(`/reports/tenants/${tenant.id}/monthly-pdf`, {
-          params: {
-            year: statement.year,
-            month: statement.month,
-          },
-          responseType: "blob",
-        });
-
-        const filename = `relatório_${slug(tenant.name)}_${statement.year}-${String(
-          statement.month
-        ).padStart(2, "0")}.pdf`;
-
-        await downloadPdf(resp.data, filename);
+      for (const period of selectedPeriods) {
+        try {
+          const resp = await http.get<BlobPart>(
+            `/reports/tenants/${tenant.id}/monthly-pdf`,
+            {
+              params: { year: period.year, month: period.month },
+              responseType: "blob",
+              skipToast: true,
+            }
+          );
+          const filename = `relatório_${slug(tenant.name)}_${period.year}-${String(
+            period.month
+          ).padStart(2, "0")}.pdf`;
+          await downloadPdf(resp.data, filename);
+        } catch (e) {
+          firstError ??= e;
+          failures.push(`${tenant.name} ${period.id}`);
+        } finally {
+          exportDlg.done++;
+        }
       }
     }
 
-    closeExportDialog();
+    if (failures.length) {
+      toast.show({
+        color: "error",
+        timeout: 8000,
+        message: withDetail(
+          `Não foi possível gerar ${failures.length} relatório(s): ${failures.join(", ")}.`,
+          firstError
+        ),
+      });
+    } else {
+      toast.show({ message: `${exportDlg.done} relatório(s) exportado(s).` });
+      closeExportDialog();
+    }
   } finally {
     exportDlg.downloading = false;
   }
@@ -442,7 +463,7 @@ async function downloadPdf(data: BlobPart, filename: string) {
 function slug(s: string) {
   return (s || "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^\w\-]+/g, "_")
     .replace(/_{2,}/g, "_")
     .replace(/^_+|_+$/g, "")

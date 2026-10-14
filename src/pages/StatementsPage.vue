@@ -1,27 +1,22 @@
 <template>
-  <div class="d-flex flex-column gap-4">
+  <div class="d-flex flex-column ga-6">
     <div class="d-flex align-center justify-space-between">
       <div class="text-h5">Faturas</div>
     </div>
 
     <PeriodFilterBar
-      class="mt-2"
       :cards="creditCards"
-      :months="months"
+      :months="MONTHS"
       :model-value-card-id="creditCardId"
       :model-value-year="year"
       :model-value-month="month"
       @update:cardId="(v) => (creditCardId = v)"
       @update:year="(v) => (year = v)"
       @update:month="(v) => (month = v)"
-      @find="findByPeriod"
+      @find="load"
       @generate="openGenerateDialog"
-      @clear="load"
+      @clear="clearFilters"
     />
-    <v-row>
-      <v-col cols="12"></v-col>
-      <v-col cols="12"></v-col>
-    </v-row>
 
     <v-card>
       <v-data-table
@@ -30,9 +25,12 @@
         :loading="loading"
         class="pa-2"
       >
-        <template #item.period="{ item }"
-          >{{ String(item.month).padStart(2, "0") }}/{{ item.year }}</template
-        >
+        <template #item.period="{ item }">{{
+          formatPeriod(item.year, item.month)
+        }}</template>
+        <template #item.card="{ item }">{{
+          cardNickname(item.creditCardId)
+        }}</template>
         <template #item.closingDate="{ item }">{{
           formatDateBR(item.closingDate)
         }}</template>
@@ -40,7 +38,7 @@
           formatDateBR(item.dueDate)
         }}</template>
         <template #item.totalAmount="{ item }">{{
-          currency(item.totalAmount)
+          toCurrencyBRL(item.totalAmount)
         }}</template>
         <template #item.locked="{ item }">
           <v-chip
@@ -62,15 +60,28 @@
           <span v-else>—</span>
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon variant="text" @click="view(item)"
+          <v-btn
+            icon
+            variant="text"
+            aria-label="Ver detalhes"
+            @click="view(item)"
             ><v-icon>mdi-eye</v-icon></v-btn
           >
-          <v-btn icon variant="text" @click="toggleLock(item)"
+          <v-btn
+            icon
+            variant="text"
+            :aria-label="item.locked ? 'Reabrir fatura' : 'Fechar fatura'"
+            @click="toggleLock(item)"
             ><v-icon>{{
               item.locked ? "mdi-lock-open-variant-outline" : "mdi-lock-outline"
             }}</v-icon></v-btn
           >
-          <v-btn icon variant="text" color="success" @click="openPay(item)"
+          <v-btn
+            icon
+            variant="text"
+            color="success"
+            aria-label="Registrar pagamento"
+            @click="openPay(item)"
             ><v-icon>mdi-cash-check</v-icon></v-btn
           >
         </template>
@@ -93,7 +104,6 @@
             item-title="nickname"
             item-value="id"
             label="Cartões"
-            variant="outlined"
             multiple
             chips
             closable-chips
@@ -103,7 +113,8 @@
             v-model.number="generateDlg.year"
             type="number"
             label="Ano"
-            variant="outlined"
+            :min="MIN_YEAR"
+            :max="MAX_YEAR"
           />
 
           <div class="d-flex align-center justify-space-between mb-1">
@@ -114,11 +125,10 @@
           </div>
           <v-select
             v-model="generateDlg.months"
-            :items="months"
+            :items="MONTHS"
             item-title="label"
             item-value="value"
             label="Meses"
-            variant="outlined"
             multiple
             chips
             closable-chips
@@ -129,7 +139,7 @@
           <v-btn
             color="primary"
             :loading="generateDlg.saving"
-            :disabled="!generationTotal || !generateDlg.year"
+            :disabled="!generationTotal || !isValidYear(generateDlg.year)"
             @click="generate"
           >
             Gerar {{ generationTotal || "" }}
@@ -138,51 +148,66 @@
       </v-card>
     </v-dialog>
 
-    <!-- View dialog -->
-    <v-dialog v-model="openView" max-width="860">
+    <!-- Detail dialog -->
+    <v-dialog v-model="detailDlg.open" max-width="860">
       <v-card>
         <v-card-title>Fatura {{ detailTitle }}</v-card-title>
         <v-card-text>
-          <div class="d-flex flex-wrap gap-4 mb-4">
+          <v-form
+            class="d-flex flex-wrap align-start ga-4 mb-4"
+            @submit.prevent="saveDetail"
+          >
             <v-text-field
-              v-model="selected.closingDate"
-              label="Fechamento (YYYY-MM-DD)"
-              style="max-width: 240px"
+              v-model="detailForm.closingDate"
+              type="date"
+              label="Fechamento"
+              style="max-width: 200px"
             />
             <v-text-field
-              v-model="selected.dueDate"
-              label="Vencimento (YYYY-MM-DD)"
-              style="max-width: 240px"
+              v-model="detailForm.dueDate"
+              type="date"
+              label="Vencimento"
+              style="max-width: 200px"
             />
             <v-text-field
-              v-model="selected.adjustmentAmount"
+              v-model="detailForm.adjustmentAmount"
               label="Ajuste (BRL)"
-              style="max-width: 180px"
+              hint="Negativo para créditos/estornos"
+              persistent-hint
+              style="max-width: 200px"
+              :error-messages="detailErrors.adjustmentAmount"
+              @update:model-value="
+                (v) => (detailForm.adjustmentAmount = sanitizeCurrencyInput(v))
+              "
             />
-            <v-switch v-model="selected.locked" inset label="Fechada?" />
+            <v-switch v-model="detailForm.locked" inset label="Fechada?" />
             <v-spacer />
             <v-btn
+              type="submit"
               variant="tonal"
               prepend-icon="mdi-content-save"
-              @click="saveSelected"
+              :loading="detailDlg.saving"
+              :disabled="detailDlg.loading"
               >Salvar</v-btn
             >
-          </div>
+          </v-form>
 
           <v-data-table
-            :items="selected.items || []"
+            :items="detailDlg.statement?.items ?? []"
             :headers="itemHeaders"
-            :loading="detailLoading"
+            :loading="detailDlg.loading"
           >
-            <template #item.amount="{ item }: { item: any }">{{
-              currency(item.amount)
+            <template #item.amount="{ item }">{{
+              toCurrencyBRL(item.amount)
             }}</template>
           </v-data-table>
 
           <div class="d-flex justify-end mt-4">
             <div class="text-subtitle-2">
               Total:
-              <strong>{{ currency(selected.totalAmount || "0") }}</strong>
+              <strong>{{
+                toCurrencyBRL(detailDlg.statement?.totalAmount ?? "0")
+              }}</strong>
             </div>
           </div>
         </v-card-text>
@@ -190,18 +215,27 @@
     </v-dialog>
 
     <!-- Pay dialog -->
-    <v-dialog v-model="openPayDialog" max-width="520">
+    <v-dialog v-model="payDlg.open" max-width="520">
       <v-card>
-        <v-card-title>Pagar fatura {{ detailTitle }}</v-card-title>
+        <v-card-title>Pagar fatura {{ payTitle }}</v-card-title>
         <v-card-text>
           <v-form @submit.prevent="confirmPay">
-            <v-text-field v-model="pay.amount" label="Valor pago (BRL)" />
             <v-text-field
-              v-model="pay.paidAt"
-              label="Data de pagamento (YYYY-MM-DD)"
+              v-model="payForm.amount"
+              label="Valor pago (BRL)"
+              :error-messages="payErrors.amount"
+              @update:model-value="
+                (v) => (payForm.amount = formatCurrencyOnType(v))
+              "
             />
-            <v-btn type="submit" :loading="payLoading">Confirmar</v-btn>
-            <v-btn variant="text" class="ml-2" @click="openPayDialog = false"
+            <v-text-field
+              v-model="payForm.paidAt"
+              type="date"
+              label="Data de pagamento"
+              :error-messages="payErrors.paidAt"
+            />
+            <v-btn type="submit" :loading="payDlg.saving">Confirmar</v-btn>
+            <v-btn variant="text" class="ml-2" @click="payDlg.open = false"
               >Cancelar</v-btn
             >
           </v-form>
@@ -213,21 +247,108 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from "vue";
-import { http } from "../stores/auth";
+import * as yup from "yup";
+import { isAxiosError } from "axios";
+import http from "../plugins/http";
 import PeriodFilterBar from "../components/PeriodFilterBar.vue";
+import { useCurrency } from "../composables/useCurrency";
+import { useFormErrors } from "../composables/useFormErrors";
+import { moneyField } from "../schemas/money";
+import { useToastStore } from "../stores/toast";
+import { withDetail } from "../utils/api-error";
+import {
+  MONTHS,
+  MIN_YEAR,
+  MAX_YEAR,
+  formatDateBR,
+  formatPeriod,
+  isValidYear,
+  toDateInput,
+  todayLocalISO,
+} from "../utils/date";
+import type { CreditCard, Statement } from "../types/domain";
 
-const creditCards = ref<any[]>([]);
+const {
+  toCurrencyBRL,
+  toApiMoney,
+  toDecimalBRL,
+  formatCurrencyOnType,
+  sanitizeCurrencyInput,
+} = useCurrency();
+const toast = useToastStore();
+
+const creditCards = ref<CreditCard[]>([]);
 const creditCardId = ref<string>("");
-const items = ref<any[]>([]);
+const items = ref<Statement[]>([]);
 const loading = ref(false);
 
 const now = new Date();
 const year = ref(now.getFullYear());
 const month = ref(now.getMonth() + 1);
-const months = Array.from({ length: 12 }, (_, i) => ({
-  label: new Date(2000, i, 1).toLocaleString("pt-BR", { month: "long" }),
-  value: i + 1,
-}));
+
+const headers = [
+  { title: "Período", key: "period" },
+  { title: "Cartão", key: "card" },
+  { title: "Fechamento", key: "closingDate" },
+  { title: "Vencimento", key: "dueDate" },
+  { title: "Total", key: "totalAmount", align: "end" as const },
+  { title: "Status", key: "locked", align: "center" as const },
+  { title: "Pagamento", key: "paid", align: "center" as const },
+  { title: "", key: "actions", align: "end" as const, sortable: false },
+];
+
+function cardNickname(cardId: string) {
+  return creditCards.value.find((c) => c.id === cardId)?.nickname ?? "—";
+}
+
+/**
+ * With card + year + month the API returns a single statement or 404 when it doesn't exist;
+ * otherwise it returns a list. Both are normalized to an array.
+ */
+async function fetchStatements(params: {
+  year: number;
+  month: number;
+  creditCardId?: string;
+}): Promise<Statement[]> {
+  try {
+    const { data } = await http.get<Statement[] | Statement>("/statements", {
+      params,
+      skipToast: true,
+    });
+    if (!data) return [];
+    return Array.isArray(data) ? data : [data];
+  } catch (e) {
+    if (isAxiosError(e) && e.response?.status === 404) return [];
+    toast.show({
+      color: "error",
+      message: withDetail("Não foi possível carregar as faturas.", e),
+    });
+    throw e;
+  }
+}
+
+async function load() {
+  if (!isValidYear(year.value)) return;
+  loading.value = true;
+  try {
+    items.value = await fetchStatements({
+      year: year.value,
+      month: month.value,
+      ...(creditCardId.value ? { creditCardId: creditCardId.value } : {}),
+    });
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function clearFilters() {
+  creditCardId.value = "";
+  year.value = now.getFullYear();
+  month.value = now.getMonth() + 1;
+  await load();
+}
+
+// ---- Generation ----
 
 const generateDlg = reactive({
   open: false,
@@ -243,83 +364,11 @@ const allCardsSelected = computed(
     generateDlg.creditCardIds.length === creditCards.value.length
 );
 const allMonthsSelected = computed(
-  () => generateDlg.months.length === months.length
+  () => generateDlg.months.length === MONTHS.length
 );
 const generationTotal = computed(
   () => generateDlg.creditCardIds.length * generateDlg.months.length
 );
-
-const headers = [
-  { title: "Período", key: "period" },
-  { title: "Fechamento", key: "closingDate" },
-  { title: "Vencimento", key: "dueDate" },
-  { title: "Total", key: "totalAmount", align: "end" as const },
-  { title: "Status", key: "locked", align: "center" as const },
-  { title: "Pagamento", key: "paid", align: "center" as const },
-  { title: "", key: "actions", align: "end" as const, sortable: false },
-];
-
-function currency(v: string | number) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-async function fetchCards() {
-  creditCards.value = (await http.get("/credit-cards")).data || [];
-}
-
-const isFiltered = ref(false);
-
-async function load() {
-  loading.value = true;
-  try {
-    const params: Record<string, any> = {
-      year: year.value,
-      month: month.value,
-    };
-    if (creditCardId.value) params.creditCardId = creditCardId.value;
-    const res = await http.get("/statements", {
-      params,
-    });
-    items.value = res.data || [];
-    isFiltered.value = false;
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function clearFilter() {
-  await load();
-}
-
-async function findByPeriod() {
-  loading.value = true;
-  try {
-    const params: Record<string, any> = {
-      year: year.value,
-      month: month.value,
-    };
-    if (creditCardId.value) params.creditCardId = creditCardId.value;
-
-    const st = (
-      await http.get("/statements", {
-        params,
-      })
-    ).data;
-    items.value = Array.isArray(st) ? st : [st];
-    isFiltered.value = true;
-  } catch (e: any) {
-    if (e?.response?.status === 404) {
-      items.value = [];
-      isFiltered.value = true;
-      console.warn("Statement not found for selected period.");
-    } else {
-      throw e;
-    }
-  } finally {
-    loading.value = false;
-  }
-}
 
 function openGenerateDialog() {
   generateDlg.creditCardIds = creditCardId.value ? [creditCardId.value] : [];
@@ -337,130 +386,206 @@ function toggleAllCards() {
 function toggleAllMonths() {
   generateDlg.months = allMonthsSelected.value
     ? []
-    : months.map((item) => item.value);
+    : MONTHS.map((item) => item.value);
 }
 
 async function generate() {
-  if (!generationTotal.value) return;
+  if (!generationTotal.value || !isValidYear(generateDlg.year)) return;
 
   generateDlg.saving = true;
+  const targetYear = generateDlg.year;
+  const failures: string[] = [];
+  let firstError: unknown = null;
+  let created = 0;
   try {
-    for (const creditCardId of generateDlg.creditCardIds) {
-      for (const month of generateDlg.months) {
-        await http.post("/statements", {
-          creditCardId,
-          year: generateDlg.year,
-          month,
-        });
+    // One request at a time; a failure (e.g. statement already exists) must not stop the rest.
+    for (const cardId of generateDlg.creditCardIds) {
+      for (const m of generateDlg.months) {
+        try {
+          await http.post(
+            "/statements",
+            { creditCardId: cardId, year: targetYear, month: m },
+            { skipToast: true }
+          );
+          created++;
+        } catch (e) {
+          firstError ??= e;
+          failures.push(`${cardNickname(cardId)} ${formatPeriod(targetYear, m)}`);
+        }
       }
     }
 
-    const statements = await Promise.all(
-      generateDlg.creditCardIds.flatMap((creditCardId) =>
-        generateDlg.months.map(async (month) => {
-          const { data } = await http.get("/statements", {
-            params: { creditCardId, year: generateDlg.year, month },
-          });
-          return Array.isArray(data) ? data : [data];
-        })
+    if (failures.length === 0) {
+      toast.show({ message: `${created} fatura(s) gerada(s) com sucesso.` });
+    } else {
+      toast.show({
+        color: "error",
+        timeout: 8000,
+        message: withDetail(
+          `${created} fatura(s) gerada(s); ${failures.length} falharam (${failures.join(", ")}).`,
+          firstError
+        ),
+      });
+    }
+
+    const lists = await Promise.all(
+      generateDlg.creditCardIds.flatMap((cardId) =>
+        generateDlg.months.map((m) =>
+          fetchStatements({ creditCardId: cardId, year: targetYear, month: m })
+        )
       )
     );
-
-    items.value = statements.flat().filter(Boolean);
-    isFiltered.value = true;
+    items.value = lists.flat();
     generateDlg.open = false;
   } finally {
     generateDlg.saving = false;
   }
 }
 
-const openView = ref(false);
-const detailLoading = ref(false);
-const selected = ref<any>({});
+// ---- Detail / edit ----
+
 const itemHeaders = [
   { title: "Descrição", key: "label" },
   { title: "Valor", key: "amount", align: "end" as const },
 ];
-const detailTitle = computed(() =>
-  selected.value?.year
-    ? `${String(selected.value.month).padStart(2, "0")}/${selected.value.year}`
-    : ""
-);
 
-async function view(st: any) {
-  detailLoading.value = true;
+const detailDlg = reactive({
+  open: false,
+  loading: false,
+  saving: false,
+  statement: null as Statement | null,
+});
+
+const detailForm = reactive({
+  closingDate: "",
+  dueDate: "",
+  adjustmentAmount: "",
+  locked: false,
+});
+
+const detailSchema = yup.object({
+  adjustmentAmount: moneyField({
+    requiredMessage: "Informe o ajuste (0,00 se não houver)",
+    allowNegative: true,
+  }),
+});
+const {
+  errors: detailErrors,
+  clearErrors: clearDetailErrors,
+  validateAll: validateDetail,
+} = useFormErrors(detailSchema, ["adjustmentAmount"] as const);
+
+const detailTitle = computed(() => {
+  const st = detailDlg.statement;
+  return st ? formatPeriod(st.year, st.month) : "";
+});
+
+function fillDetailForm(st: Statement) {
+  detailDlg.statement = st;
+  Object.assign(detailForm, {
+    closingDate: toDateInput(st.closingDate),
+    dueDate: toDateInput(st.dueDate),
+    adjustmentAmount: toDecimalBRL(st.adjustmentAmount ?? "0"),
+    locked: !!st.locked,
+  });
+}
+
+async function view(st: Statement) {
+  fillDetailForm(st);
+  clearDetailErrors();
+  detailDlg.open = true;
+  detailDlg.loading = true;
   try {
-    selected.value = (await http.get(`/statements/${st.id}`)).data;
-    openView.value = true;
+    fillDetailForm((await http.get<Statement>(`/statements/${st.id}`)).data);
   } finally {
-    detailLoading.value = false;
+    detailDlg.loading = false;
   }
 }
 
-function formatDateBR(dateString: string) {
-  if (!dateString) return "—";
+async function saveDetail() {
+  const st = detailDlg.statement;
+  if (!st) return;
+  if (!(await validateDetail(detailForm))) return;
 
-  const date = new Date(dateString);
-  return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
-}
-
-async function saveSelected() {
-  if (!selected.value?.id) return;
-  const body: any = {
-    closingDate: selected.value.closingDate || null,
-    dueDate: selected.value.dueDate || null,
-    locked: !!selected.value.locked,
-    adjustmentAmount: selected.value.adjustmentAmount ?? "0.00",
-  };
-  selected.value = (
-    await http.patch(`/statements/${selected.value.id}`, body)
-  ).data;
-
-  if (isFiltered.value) await findByPeriod();
-  else await load();
-}
-
-async function toggleLock(st: any) {
-  const updated = (
-    await http.patch(`/statements/${st.id}`, { locked: !st.locked })
-  ).data;
-
-  if (isFiltered.value) {
-    await findByPeriod();
-  } else {
-    const idx = items.value.findIndex((x) => x.id === st.id);
-    if (idx >= 0) items.value[idx] = updated;
+  detailDlg.saving = true;
+  try {
+    await http.patch(`/statements/${st.id}`, {
+      closingDate: detailForm.closingDate || null,
+      dueDate: detailForm.dueDate || null,
+      locked: detailForm.locked,
+      adjustmentAmount: toApiMoney(detailForm.adjustmentAmount),
+    });
+    // Re-read so items and totals reflect the backend recalculation.
+    fillDetailForm((await http.get<Statement>(`/statements/${st.id}`)).data);
+    await load();
+  } finally {
+    detailDlg.saving = false;
   }
 }
 
-const openPayDialog = ref(false);
-const pay = ref({ amount: "", paidAt: "" });
-const payLoading = ref(false);
+async function toggleLock(st: Statement) {
+  const { data: updated } = await http.patch<Statement>(`/statements/${st.id}`, {
+    locked: !st.locked,
+  });
+  const idx = items.value.findIndex((x) => x.id === st.id);
+  if (idx >= 0) items.value[idx] = { ...items.value[idx], ...updated };
+}
 
-function openPay(st: any) {
-  selected.value = st;
-  pay.value.amount = st.totalAmount || "0.00";
-  pay.value.paidAt = new Date().toISOString().slice(0, 10);
-  openPayDialog.value = true;
+// ---- Payment ----
+
+const payDlg = reactive({
+  open: false,
+  saving: false,
+  statement: null as Statement | null,
+});
+const payForm = reactive({ amount: "", paidAt: "" });
+
+const paySchema = yup.object({
+  amount: moneyField({ requiredMessage: "Informe o valor pago", positive: true }),
+  paidAt: yup
+    .string()
+    .required("Informe a data de pagamento")
+    .matches(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
+});
+const {
+  errors: payErrors,
+  clearErrors: clearPayErrors,
+  validateAll: validatePay,
+} = useFormErrors(paySchema, ["amount", "paidAt"] as const);
+
+const payTitle = computed(() => {
+  const st = payDlg.statement;
+  return st ? formatPeriod(st.year, st.month) : "";
+});
+
+function openPay(st: Statement) {
+  payDlg.statement = st;
+  payForm.amount = toCurrencyBRL(st.totalAmount || "0");
+  payForm.paidAt = todayLocalISO();
+  clearPayErrors();
+  payDlg.open = true;
 }
 
 async function confirmPay() {
-  payLoading.value = true;
+  const st = payDlg.statement;
+  if (!st) return;
+  if (!(await validatePay(payForm))) return;
+
+  payDlg.saving = true;
   try {
-    await http.post(`/statements/${selected.value.id}/pay`, {
-      amount: pay.value.amount,
-      paidAt: pay.value.paidAt,
+    await http.post(`/statements/${st.id}/pay`, {
+      amount: toApiMoney(payForm.amount),
+      paidAt: payForm.paidAt,
     });
-    openPayDialog.value = false;
-    if (isFiltered.value) await findByPeriod();
-    else await load();
+    payDlg.open = false;
+    await load();
   } finally {
-    payLoading.value = false;
+    payDlg.saving = false;
   }
 }
 
 onMounted(async () => {
-  await fetchCards();
+  creditCards.value = (await http.get<CreditCard[]>("/credit-cards")).data || [];
   await load();
 });
 </script>

@@ -21,6 +21,7 @@
     <v-text-field
       v-model="description"
       label="Descrição"
+      maxlength="255"
       prepend-inner-icon="mdi-text"
       :error-messages="errors.description"
     />
@@ -33,7 +34,7 @@
     />
     <v-text-field
       v-model="purchaseDate"
-      label="Data (YYYY-MM-DD)"
+      label="Data"
       prepend-inner-icon="mdi-calendar"
       type="date"
       :error-messages="errors.purchaseDate"
@@ -46,7 +47,7 @@
       class="mt-2"
       color="primary"
     />
-    <div v-if="isInstallment" class="d-flex" style="gap: 1rem">
+    <div v-if="isInstallment" class="d-flex ga-4">
       <v-text-field
         type="number"
         v-model.number="installmentsTotal"
@@ -72,31 +73,36 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useForm } from "vee-validate";
-import { purchaseSchema } from "../schemas/purchaseSchema";
+import {
+  purchaseSchema,
+  type PurchaseFormValues,
+} from "../schemas/purchaseSchema";
 import { useCurrency } from "../composables/useCurrency";
+import { toDateInput, todayLocalISO } from "../utils/date";
+import type { CreditCard, Purchase, Tenant } from "../types/domain";
 
 const props = defineProps<{
-  modelValue?: any;
-  creditCards: any[];
-  tenants: any[];
+  modelValue?: Purchase | null;
+  creditCards: CreditCard[];
+  tenants: Tenant[];
   loading?: boolean;
 }>();
-const emit = defineEmits<{ (e: "submit", value: any): void }>();
+const emit = defineEmits<{ (e: "submit", value: PurchaseFormValues): void }>();
 const { formatCurrencyOnType, toNumberBRL, toCurrencyBRL } = useCurrency();
 
-const { handleSubmit, errors, defineField, meta } = useForm({
+const initial = props.modelValue;
+
+const { handleSubmit, errors, defineField } = useForm<PurchaseFormValues>({
   validationSchema: purchaseSchema,
   initialValues: {
-    id: props.modelValue?.id,
-    creditCardId: props.modelValue?.creditCardId ?? "",
-    tenantId: props.modelValue?.tenantId ?? "",
-    description: props.modelValue?.description ?? "",
-    totalAmount: props.modelValue?.totalAmount ?? "",
-    purchaseDate:
-      props.modelValue?.purchaseDate ?? new Date().toISOString().slice(0, 10),
-    isInstallment: props.modelValue?.isInstallment ?? false,
-    installmentsTotal: props.modelValue?.installmentsTotal ?? null,
-    installmentsPaid: props.modelValue?.installmentsPaid ?? 0,
+    creditCardId: initial?.creditCardId ?? "",
+    tenantId: initial?.tenantId ?? "",
+    description: initial?.description ?? "",
+    totalAmount: initial ? Number(initial.totalAmount) : "",
+    purchaseDate: toDateInput(initial?.purchaseDate) || todayLocalISO(),
+    isInstallment: initial?.isInstallment ?? false,
+    installmentsTotal: initial?.installmentsTotal ?? null,
+    installmentsPaid: initial?.installmentsPaid ?? 0,
   },
 });
 
@@ -109,7 +115,9 @@ const [isInstallment] = defineField("isInstallment");
 const [installmentsTotal] = defineField("installmentsTotal");
 const [installmentsPaid] = defineField("installmentsPaid");
 
-const maskedTotalAmount = ref(toCurrencyBRL(totalAmount.value ?? ""));
+const maskedTotalAmount = ref(
+  totalAmount.value === "" ? "" : toCurrencyBRL(totalAmount.value ?? "")
+);
 
 function onAmountChange(newValue: string) {
   const formatted = formatCurrencyOnType(newValue);

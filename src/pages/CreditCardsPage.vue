@@ -1,13 +1,9 @@
 <template>
-  <div class="d-flex flex-column gap-4">
+  <div class="d-flex flex-column ga-6">
     <div class="d-flex align-center justify-space-between">
       <div class="text-h5">Cartões</div>
-      <v-btn prepend-icon="mdi-plus" @click="open = true">Novo cartão</v-btn>
+      <v-btn prepend-icon="mdi-plus" @click="openNew">Novo cartão</v-btn>
     </div>
-    <v-row>
-      <v-col cols="12"></v-col>
-      <v-col cols="12"></v-col>
-    </v-row>
     <v-card>
       <v-data-table
         :items="items"
@@ -16,13 +12,18 @@
         class="pa-2"
       >
         <template #item.limitAmount="{ item }">
-          {{ currencyCell(item.limitAmount) }}
+          {{ toCurrencyBRL(item.limitAmount ?? 0) }}
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon variant="text" @click="edit(item)"
+          <v-btn icon variant="text" aria-label="Editar" @click="edit(item)"
             ><v-icon>mdi-pencil</v-icon></v-btn
           >
-          <v-btn icon variant="text" color="error" @click="remove(item)"
+          <v-btn
+            icon
+            variant="text"
+            color="error"
+            aria-label="Excluir"
+            @click="remove(item)"
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
@@ -35,15 +36,17 @@
           form.id ? "Editar cartão" : "Novo cartão"
         }}</v-card-title>
         <v-card-text>
-          <v-form ref="formRef" @submit.prevent="save">
+          <v-form @submit.prevent="save">
             <v-text-field
               v-model="form.nickname"
               label="Apelido"
+              maxlength="80"
               :error-messages="errors.nickname"
             />
             <v-text-field
               v-model="form.brand"
               label="Bandeira"
+              maxlength="50"
               :error-messages="errors.brand"
             />
             <v-text-field
@@ -72,26 +75,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, nextTick } from "vue";
+import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useCurrency } from "../composables/useCurrency";
+import { useFormErrors } from "../composables/useFormErrors";
+import { moneyField } from "../schemas/money";
+import { useConfirmStore } from "../stores/confirm";
+import type { CreditCard } from "../types/domain";
 
-const {
-  toNumberBRL,
-  toCurrencyBRL,
-  digitsOnly,
-  formatCurrencyOnType,
-} = useCurrency();
+const { toCurrencyBRL, digitsOnly, formatCurrencyOnType, toApiMoney } =
+  useCurrency();
+const confirm = useConfirmStore();
 
 const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
-const isEditing = ref(false);
 const dialogKey = ref(0);
-const formRef = ref<any>(null);
 
-const items = ref<any[]>([]);
+const items = ref<CreditCard[]>([]);
 const headers = [
   { title: "Apelido", key: "nickname" },
   { title: "Bandeira", key: "brand" },
@@ -105,14 +107,14 @@ function onLimitInput(val: string) {
 }
 
 type FormT = {
-  id?: string;
+  id: string;
   nickname: string;
   brand: string;
   last4: string;
   limitAmount: string;
 };
 
-const form = reactive<FormT>({
+const emptyForm = (): FormT => ({
   id: "",
   nickname: "",
   brand: "",
@@ -120,83 +122,42 @@ const form = reactive<FormT>({
   limitAmount: "",
 });
 
-const errors = reactive<Record<keyof FormT | string, string[]>>({
-  id: [],
-  nickname: [],
-  brand: [],
-  last4: [],
-  limitAmount: [],
-});
+const form = reactive<FormT>(emptyForm());
 
 const schema = yup.object({
-  id: yup.string().optional(),
   nickname: yup
     .string()
-    .required("Apelido é obrigatório")
     .trim()
-    .min(1, "Apelido é obrigatório"),
+    .required("Apelido é obrigatório")
+    .max(80, "Máximo de 80 caracteres"),
   brand: yup
     .string()
-    .required("Bandeira é obrigatória")
     .trim()
-    .min(1, "Bandeira é obrigatória"),
+    .required("Bandeira é obrigatória")
+    .max(50, "Máximo de 50 caracteres"),
   last4: yup
     .string()
     .required("Final é obrigatório")
     .matches(/^\d{4}$/, "Final deve conter exatamente 4 dígitos"),
-  limitAmount: yup
-    .string()
-    .required("Limite é obrigatório")
-    .test("brl-format", "Informe um valor válido em BRL", (value) => {
-      if (!value) return false;
-      const n = toNumberBRL(value);
-      return !isNaN(n) && isFinite(n) && n >= 0;
-    }),
+  limitAmount: moneyField({ requiredMessage: "Limite é obrigatório" }),
 });
 
-function clearErrors() {
-  Object.keys(errors).forEach((k) => (errors[k] = []));
-  nextTick(() => formRef.value?.resetValidation?.());
-}
-
-function resetForm() {
-  Object.assign(form, {
-    id: "",
-    nickname: "",
-    brand: "",
-    last4: "",
-    limitAmount: "",
-  });
-}
-
-async function validateAll(): Promise<boolean> {
-  clearErrors();
-  try {
-    await schema.validate(form, { abortEarly: false });
-    return true;
-  } catch (e: any) {
-    if (e?.inner?.length)
-      e.inner.forEach((err: any) => {
-        if (err?.path && errors[err.path] !== undefined)
-          errors[err.path].push(err.message);
-      });
-    else if (e?.path) errors[e.path] = [e.message];
-    return false;
-  }
-}
+const { errors, clearErrors, validateAll } = useFormErrors(schema, [
+  "nickname",
+  "brand",
+  "last4",
+  "limitAmount",
+] as const);
 
 function openNew() {
-  isEditing.value = false;
-  resetForm();
+  Object.assign(form, emptyForm());
   clearErrors();
   open.value = true;
-  dialogKey.value++;
 }
 
-function edit(it: any) {
-  isEditing.value = true;
+function edit(it: CreditCard) {
   Object.assign(form, {
-    id: it.id ?? "",
+    id: it.id,
     nickname: it.nickname ?? "",
     brand: it.brand ?? "",
     last4: digitsOnly(String(it.last4 ?? ""), 4),
@@ -208,8 +169,7 @@ function edit(it: any) {
 
 watch(open, (val) => {
   if (!val) {
-    isEditing.value = false;
-    resetForm();
+    Object.assign(form, emptyForm());
     clearErrors();
     dialogKey.value++;
   }
@@ -219,15 +179,11 @@ function onCancel() {
   open.value = false;
 }
 
-function currencyCell(v: string | number) {
-  return toCurrencyBRL(v);
-}
-
 async function fetchAll() {
   loading.value = true;
   try {
-    const { data } = await http.get("/credit-cards");
-    items.value = data;
+    const { data } = await http.get<CreditCard[]>("/credit-cards");
+    items.value = data || [];
   } finally {
     loading.value = false;
   }
@@ -236,15 +192,13 @@ async function fetchAll() {
 async function save() {
   saving.value = true;
   try {
-    const ok = await validateAll();
-    if (!ok) return;
+    if (!(await validateAll(form))) return;
 
-    const limit = toNumberBRL(form.limitAmount);
     const body = {
       nickname: form.nickname.trim(),
       brand: form.brand.trim(),
       last4: form.last4,
-      limitAmount: Number(limit.toFixed(2)),
+      limitAmount: toApiMoney(form.limitAmount),
     };
 
     if (form.id) await http.patch(`/credit-cards/${form.id}`, body);
@@ -257,7 +211,12 @@ async function save() {
   }
 }
 
-async function remove(it: any) {
+async function remove(it: CreditCard) {
+  const confirmed = await confirm.ask({
+    title: "Excluir cartão",
+    message: `Deseja excluir o cartão "${it.nickname}"? Faturas e assinaturas vinculadas a ele também serão excluídas, e cartões com compras não podem ser excluídos. Essa ação não pode ser desfeita.`,
+  });
+  if (!confirmed) return;
   await http.delete(`/credit-cards/${it.id}`);
   await fetchAll();
 }

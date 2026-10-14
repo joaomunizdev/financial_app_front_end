@@ -7,30 +7,30 @@
           Cadastre-se para organizar cartões e faturas.
         </div>
       </div>
-      <v-form
-        @submit.prevent="onSubmit"
-        v-model="valid"
-        class="d-flex flex-column gap-3"
-      >
+      <v-form @submit.prevent="onSubmit" class="d-flex flex-column ga-3">
         <v-text-field
-          v-model="name"
+          v-model="form.name"
           label="Nome completo"
+          autocomplete="name"
+          maxlength="120"
           prepend-inner-icon="mdi-account-outline"
-          required
+          :error-messages="errors.name"
         />
         <v-text-field
-          v-model="email"
+          v-model="form.email"
           label="E-mail"
           type="email"
+          autocomplete="email"
           prepend-inner-icon="mdi-email-outline"
-          required
+          :error-messages="errors.email"
         />
         <v-text-field
-          v-model="password"
+          v-model="form.password"
           label="Senha"
           type="password"
+          autocomplete="new-password"
           prepend-inner-icon="mdi-lock-outline"
-          required
+          :error-messages="errors.password"
         />
         <v-btn :loading="loading" block class="mt-2" type="submit"
           >Registrar</v-btn
@@ -47,29 +47,46 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useTheme } from "vuetify";
+import { reactive, ref } from "vue";
+import * as yup from "yup";
 import { useAuthStore } from "../stores/auth";
+import { useFormErrors } from "../composables/useFormErrors";
 
 const auth = useAuthStore();
-const name = ref("");
-const email = ref("");
-const password = ref("");
-const valid = ref(false);
+const form = reactive({ name: "", email: "", password: "" });
 const loading = ref(false);
-const theme = useTheme();
-const logoSrc = computed(() =>
-  theme.global.current.value.dark
-    ? new URL("../assets/white-logo.png", import.meta.url).href
-    : new URL("../assets/logo.png", import.meta.url).href
-);
+
+// Mirrors the backend RegisterDto (IsEmail, MinLength(6)); name fits the 120-char column.
+const schema = yup.object({
+  name: yup
+    .string()
+    .trim()
+    .required("Nome é obrigatório")
+    .max(120, "Máximo de 120 caracteres"),
+  email: yup
+    .string()
+    .trim()
+    .required("E-mail é obrigatório")
+    .email("Informe um e-mail válido"),
+  password: yup
+    .string()
+    .required("Senha é obrigatória")
+    .min(6, "A senha deve ter pelo menos 6 caracteres"),
+});
+
+const { errors, validateAll } = useFormErrors(schema, [
+  "name",
+  "email",
+  "password",
+] as const);
 
 async function onSubmit() {
-  if (!valid.value) return;
+  if (!(await validateAll(form))) return;
   loading.value = true;
   try {
-    await auth.register(name.value, email.value, password.value);
-    await auth.login(email.value, password.value);
+    const email = form.email.trim();
+    await auth.register(form.name.trim(), email, form.password);
+    await auth.login(email, form.password);
     location.assign("/dashboard");
   } finally {
     loading.value = false;

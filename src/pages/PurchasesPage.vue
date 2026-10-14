@@ -1,15 +1,37 @@
 <template>
-  <div class="d-flex flex-column gap-4">
+  <div class="d-flex flex-column ga-6">
     <div class="d-flex align-center justify-space-between">
       <div class="text-h5">Compras</div>
-      <div class="d-flex gap-2">
-        <v-btn prepend-icon="mdi-plus" @click="open = true">Nova</v-btn>
-      </div>
+      <v-btn prepend-icon="mdi-plus" @click="openNew">Nova</v-btn>
     </div>
-    <v-row>
-      <v-col cols="12"></v-col>
-      <v-col cols="12"></v-col>
-    </v-row>
+    <v-sheet
+      class="pa-3 rounded-xl d-flex flex-wrap align-center ga-3"
+      color="surface"
+      elevation="1"
+    >
+      <v-select
+        v-model="filters.creditCardId"
+        :items="creditCards"
+        item-title="nickname"
+        item-value="id"
+        label="Cartão"
+        clearable
+        hide-details
+        prepend-inner-icon="mdi-credit-card-outline"
+        style="min-width: 240px"
+      />
+      <v-select
+        v-model="filters.tenantId"
+        :items="tenants"
+        item-title="name"
+        item-value="id"
+        label="Responsável"
+        clearable
+        hide-details
+        prepend-inner-icon="mdi-account-outline"
+        style="min-width: 240px"
+      />
+    </v-sheet>
     <v-card>
       <v-data-table
         :items="items"
@@ -18,11 +40,19 @@
         class="pa-2"
       >
         <template #item.totalAmount="{ item }">{{
-          currency(item.totalAmount)
+          toCurrencyBRL(item.totalAmount)
         }}</template>
 
         <template #item.purchaseDate="{ item }">{{
           formatDateBR(item.purchaseDate)
+        }}</template>
+
+        <template #item.card="{ item }">{{
+          cardNickname(item.creditCardId)
+        }}</template>
+
+        <template #item.tenant="{ item }">{{
+          tenantName(item.tenantId)
         }}</template>
 
         <template #item.isInstallment="{ item }">
@@ -41,10 +71,15 @@
           <span v-else>—</span>
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon variant="text" @click="edit(item)"
+          <v-btn icon variant="text" aria-label="Editar" @click="edit(item)"
             ><v-icon>mdi-pencil</v-icon></v-btn
           >
-          <v-btn icon variant="text" color="error" @click="remove(item)"
+          <v-btn
+            icon
+            variant="text"
+            color="error"
+            aria-label="Excluir"
+            @click="remove(item)"
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
@@ -71,46 +106,55 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import PurchaseForm from "../components/PurchaseForm.vue";
+import type { PurchaseFormValues } from "../schemas/purchaseSchema";
+import { useCurrency } from "../composables/useCurrency";
+import { useConfirmStore } from "../stores/confirm";
+import { formatDateBR } from "../utils/date";
+import type { CreditCard, Purchase, Tenant } from "../types/domain";
+
+const { toCurrencyBRL, toApiMoney } = useCurrency();
+const confirm = useConfirmStore();
 
 const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
-const items = ref<any[]>([]);
-const creditCards = ref<any[]>([]);
-const tenants = ref<any[]>([]);
-const form = ref<any | null>(null);
-const filters = ref({ creditCardId: "", tenantId: "" });
+const items = ref<Purchase[]>([]);
+const creditCards = ref<CreditCard[]>([]);
+const tenants = ref<Tenant[]>([]);
+const form = ref<Purchase | null>(null);
+const filters = reactive<{
+  creditCardId: string | null;
+  tenantId: string | null;
+}>({ creditCardId: null, tenantId: null });
 
-const headers: {
-  title: string;
-  key: string;
-  align?: "start" | "center" | "end";
-  sortable?: boolean;
-}[] = [
+const headers = [
   { title: "Descrição", key: "description" },
   { title: "Data", key: "purchaseDate" },
-  { title: "Valor", key: "totalAmount", align: "end" },
-  { title: "Parcelada", key: "isInstallment", align: "center" },
-  { title: "Parcelas", key: "installments", align: "center" },
-  { title: "", key: "actions", align: "end", sortable: false },
+  { title: "Cartão", key: "card" },
+  { title: "Responsável", key: "tenant" },
+  { title: "Valor", key: "totalAmount", align: "end" as const },
+  { title: "Parcelada", key: "isInstallment", align: "center" as const },
+  { title: "Parcelas", key: "installments", align: "center" as const },
+  { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
 
-function currency(v: string) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+function cardNickname(cardId: string) {
+  return creditCards.value.find((c) => c.id === cardId)?.nickname ?? "—";
 }
 
-function formatDateBR(dateString: string) {
-  if (!dateString) return "—"; 
-
-  const date = new Date(dateString);
-  return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+function tenantName(tenantId: string) {
+  return tenants.value.find((t) => t.id === tenantId)?.name ?? "—";
 }
 
-function edit(it: any) {
+function openNew() {
+  form.value = null;
+  open.value = true;
+}
+
+function edit(it: Purchase) {
   form.value = { ...it };
   open.value = true;
 }
@@ -119,8 +163,8 @@ async function fetchAll() {
   loading.value = true;
   try {
     const [c, t] = await Promise.all([
-      http.get("/credit-cards"),
-      http.get("/tenants"),
+      http.get<CreditCard[]>("/credit-cards"),
+      http.get<Tenant[]>("/tenants"),
     ]);
     creditCards.value = c.data || [];
     tenants.value = t.data || [];
@@ -131,20 +175,36 @@ async function fetchAll() {
 }
 
 async function loadPurchases() {
-  const params: any = {};
-  if (filters.value.creditCardId)
-    params.creditCardId = filters.value.creditCardId;
-  if (filters.value.tenantId) params.tenantId = filters.value.tenantId;
-  const { data } = await http.get("/purchases", { params });
-  items.value = data || [];
+  loading.value = true;
+  try {
+    const params: Record<string, string> = {};
+    if (filters.creditCardId) params.creditCardId = filters.creditCardId;
+    if (filters.tenantId) params.tenantId = filters.tenantId;
+    const { data } = await http.get<Purchase[]>("/purchases", { params });
+    items.value = data || [];
+  } finally {
+    loading.value = false;
+  }
 }
 
-async function save(payload: any) {
+watch(() => [filters.creditCardId, filters.tenantId], loadPurchases);
+
+async function save(values: PurchaseFormValues) {
   saving.value = true;
   try {
-    const { id, ...body } = payload;
+    const isInstallment = !!values.isInstallment;
+    const body = {
+      creditCardId: values.creditCardId,
+      tenantId: values.tenantId,
+      description: values.description.trim(),
+      purchaseDate: values.purchaseDate,
+      totalAmount: toApiMoney(values.totalAmount),
+      isInstallment,
+      installmentsTotal: isInstallment ? values.installmentsTotal : null,
+      installmentsPaid: isInstallment ? values.installmentsPaid ?? 0 : 0,
+    };
 
-    if (id) await http.patch(`/purchases/${id}`, body);
+    if (values.id) await http.patch(`/purchases/${values.id}`, body);
     else await http.post("/purchases", body);
     open.value = false;
     form.value = null;
@@ -154,7 +214,12 @@ async function save(payload: any) {
   }
 }
 
-async function remove(it: any) {
+async function remove(it: Purchase) {
+  const confirmed = await confirm.ask({
+    title: "Excluir compra",
+    message: `Deseja excluir a compra "${it.description}"? Essa ação não pode ser desfeita.`,
+  });
+  if (!confirmed) return;
   await http.delete(`/purchases/${it.id}`);
   await loadPurchases();
 }

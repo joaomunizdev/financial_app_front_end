@@ -6,6 +6,8 @@
           v-model.number="localYear"
           type="number"
           label="Ano"
+          :min="MIN_YEAR"
+          :max="MAX_YEAR"
           density="comfortable"
           variant="outlined"
           hide-details
@@ -52,6 +54,7 @@
 
 <script setup lang="ts">
 import { watch, ref } from "vue";
+import { MIN_YEAR, MAX_YEAR, isValidYear } from "../utils/date";
 
 const props = defineProps<{
   months: { label: string; value: number }[];
@@ -69,7 +72,10 @@ const emit = defineEmits<{
 const localYear = ref(props.modelValueYear || new Date().getFullYear());
 const localMonth = ref(props.modelValueMonth || new Date().getMonth() + 1);
 
-watch(localYear, (v) => emit("update:year", Number(v)));
+// An empty or out-of-range year is not propagated (the API accepts 2000–2100).
+watch(localYear, (v) => {
+  if (isValidYear(v)) emit("update:year", v);
+});
 watch(localMonth, (v) => emit("update:month", Number(v)));
 
 watch(

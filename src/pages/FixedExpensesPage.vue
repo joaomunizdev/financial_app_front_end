@@ -1,13 +1,9 @@
 <template>
-  <div class="d-flex flex-column gap-4">
+  <div class="d-flex flex-column ga-6">
     <div class="d-flex align-center justify-space-between">
       <div class="text-h5">Despesas fixas</div>
-      <v-btn prepend-icon="mdi-plus" @click="open = true">Nova despesa fixa</v-btn>
+      <v-btn prepend-icon="mdi-plus" @click="openNew">Nova despesa fixa</v-btn>
     </div>
-    <v-row>
-      <v-col cols="12"></v-col>
-      <v-col cols="12"></v-col>
-    </v-row>
     <v-card>
       <v-data-table
         :items="items"
@@ -16,13 +12,18 @@
         class="pa-2"
       >
         <template #item.amount="{ item }">
-          {{ currencyCell(item.amount) }}
+          {{ toCurrencyBRL(item.amount) }}
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon variant="text" @click="edit(item)"
+          <v-btn icon variant="text" aria-label="Editar" @click="edit(item)"
             ><v-icon>mdi-pencil</v-icon></v-btn
           >
-          <v-btn icon variant="text" color="error" @click="remove(item)"
+          <v-btn
+            icon
+            variant="text"
+            color="error"
+            aria-label="Excluir"
+            @click="remove(item)"
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
@@ -35,7 +36,7 @@
           form.id ? "Editar despesa fixa" : "Nova despesa fixa"
         }}</v-card-title>
         <v-card-text>
-          <v-form ref="formRef" @submit.prevent="save">
+          <v-form @submit.prevent="save">
             <v-select
               v-model="form.tenantId"
               :items="tenants"
@@ -48,6 +49,7 @@
             <v-text-field
               v-model="form.description"
               label="Descrição"
+              maxlength="180"
               :error-messages="errors.description"
             />
             <v-text-field
@@ -68,21 +70,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, nextTick } from "vue";
+import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useCurrency } from "../composables/useCurrency";
+import { useFormErrors } from "../composables/useFormErrors";
+import { moneyField } from "../schemas/money";
+import { useConfirmStore } from "../stores/confirm";
+import type { FixedExpense, Tenant } from "../types/domain";
 
-const { toNumberBRL, toCurrencyBRL, formatCurrencyOnType } = useCurrency();
+const { toCurrencyBRL, formatCurrencyOnType, toApiMoney } = useCurrency();
+const confirm = useConfirmStore();
 
 const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 const dialogKey = ref(0);
-const formRef = ref<any>(null);
 
-const items = ref<any[]>([]);
-const tenants = ref<any[]>([]);
+type FixedExpenseRow = FixedExpense & { tenantName: string };
+
+const items = ref<FixedExpenseRow[]>([]);
+const tenants = ref<Tenant[]>([]);
 const headers = [
   { title: "Responsável", key: "tenantName" },
   { title: "Descrição", key: "description" },
@@ -95,78 +103,47 @@ function onAmountInput(val: string) {
 }
 
 type FormT = {
-  id?: string;
+  id: string;
   tenantId: string;
   description: string;
   amount: string;
 };
 
-const form = reactive<FormT>({
+const emptyForm = (): FormT => ({
   id: "",
   tenantId: "",
   description: "",
   amount: "",
 });
 
-const errors = reactive<Record<keyof FormT | string, string[]>>({
-  id: [],
-  tenantId: [],
-  description: [],
-  amount: [],
-});
+const form = reactive<FormT>(emptyForm());
 
 const schema = yup.object({
-  id: yup.string().optional(),
   tenantId: yup.string().required("O responsável é obrigatório"),
   description: yup
     .string()
-    .required("Descrição é obrigatória")
     .trim()
-    .min(1, "Descrição é obrigatória"),
-  amount: yup
-    .string()
-    .required("Valor é obrigatório")
-    .test("brl-format", "Informe um valor válido em BRL", (value) => {
-      if (!value) return false;
-      const n = toNumberBRL(value);
-      return !isNaN(n) && isFinite(n) && n >= 0;
-    }),
+    .required("Descrição é obrigatória")
+    .max(180, "Máximo de 180 caracteres"),
+  amount: moneyField(),
 });
 
-function clearErrors() {
-  Object.keys(errors).forEach((k) => (errors[k] = []));
-  nextTick(() => formRef.value?.resetValidation?.());
-}
+const { errors, clearErrors, validateAll } = useFormErrors(schema, [
+  "tenantId",
+  "description",
+  "amount",
+] as const);
 
-function resetForm() {
-  Object.assign(form, {
-    id: "",
-    tenantId: "",
-    description: "",
-    amount: "",
-  });
-}
-
-async function validateAll(): Promise<boolean> {
+function openNew() {
+  Object.assign(form, emptyForm());
   clearErrors();
-  try {
-    await schema.validate(form, { abortEarly: false });
-    return true;
-  } catch (e: any) {
-    if (e?.inner?.length)
-      e.inner.forEach((err: any) => {
-        if (err?.path && errors[err.path] !== undefined)
-          errors[err.path].push(err.message);
-      });
-    else if (e?.path) errors[e.path] = [e.message];
-    return false;
-  }
+  open.value = true;
 }
 
-function edit(it: any) {
+function edit(it: FixedExpenseRow) {
   Object.assign(form, {
-    id: it.id ?? "",
-    tenantId: it.tenantId ?? "",
+    id: it.id,
+    tenantId: it.tenantId ?? it.tenant?.id ?? "",
     description: it.description ?? "",
     amount: toCurrencyBRL(it.amount ?? "0"),
   });
@@ -176,7 +153,7 @@ function edit(it: any) {
 
 watch(open, (val) => {
   if (!val) {
-    resetForm();
+    Object.assign(form, emptyForm());
     clearErrors();
     dialogKey.value++;
   }
@@ -186,18 +163,14 @@ function onCancel() {
   open.value = false;
 }
 
-function currencyCell(v: string | number) {
-  return toCurrencyBRL(v);
-}
-
 async function fetchAll() {
   loading.value = true;
   try {
     const [fixedExpensesRes, tenantsRes] = await Promise.all([
-      http.get("/fixed-expenses"),
-      http.get("/tenants"),
+      http.get<FixedExpense[]>("/fixed-expenses"),
+      http.get<Tenant[]>("/tenants"),
     ]);
-    items.value = (fixedExpensesRes.data || []).map((item: any) => ({
+    items.value = (fixedExpensesRes.data || []).map((item) => ({
       ...item,
       tenantName: item.tenant?.name ?? "—",
     }));
@@ -210,14 +183,12 @@ async function fetchAll() {
 async function save() {
   saving.value = true;
   try {
-    const ok = await validateAll();
-    if (!ok) return;
+    if (!(await validateAll(form))) return;
 
-    const amount = toNumberBRL(form.amount);
     const body = {
       tenantId: form.tenantId,
       description: form.description.trim(),
-      amount: Number(amount.toFixed(2)),
+      amount: toApiMoney(form.amount),
     };
 
     if (form.id) await http.patch(`/fixed-expenses/${form.id}`, body);
@@ -230,7 +201,12 @@ async function save() {
   }
 }
 
-async function remove(it: any) {
+async function remove(it: FixedExpenseRow) {
+  const confirmed = await confirm.ask({
+    title: "Excluir despesa fixa",
+    message: `Deseja excluir a despesa "${it.description}"? Essa ação não pode ser desfeita.`,
+  });
+  if (!confirmed) return;
   await http.delete(`/fixed-expenses/${it.id}`);
   await fetchAll();
 }
