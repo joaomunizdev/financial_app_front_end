@@ -100,8 +100,7 @@
       @update:model-value="(open) => !open && toast.hide()"
       :color="toast.color"
       :timeout="toast.timeout"
-      location="bottom right"
-      variant="outlined"
+      location="top right"
     >
       {{ toast.message }}
     </v-snackbar>
