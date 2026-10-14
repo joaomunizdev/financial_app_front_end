@@ -50,7 +50,6 @@
 
     <v-btn
       prepend-icon="mdi-file-plus-outline"
-      :disabled="!localCardId"
       @click="$emit('generate')"
     >
       Gerar fatura

@@ -157,29 +157,35 @@
         <v-card-title>Exportar PDF mensal</v-card-title>
         <v-card-text>
           <div class="mb-3 text-body-2">
-            Escolha o responsável e o período para gerar o relatório completo.
+            Escolha os responsáveis e o período para gerar os relatórios.
           </div>
           <v-select
-            v-model="exportDlg.tenantId"
-            :items="tenantOptions"
+            v-model="exportDlg.tenantIds"
+            :items="tenants"
             item-title="name"
             item-value="id"
-            label="Responsável"
+            label="Responsáveis"
             variant="outlined"
             density="comfortable"
             prepend-inner-icon="mdi-account"
+            multiple
+            chips
+            closable-chips
           />
           <v-select
-            v-model="exportDlg.statementId"
-            :items="statementOptions"
+            v-model="exportDlg.statementIds"
+            :items="exportDlg.statements"
             :loading="exportDlg.loading"
             item-title="label"
             item-value="id"
-            label="Fatura (Cartão — Período)"
+            label="Faturas (Períodos)"
             variant="outlined"
             density="comfortable"
             prepend-inner-icon="mdi-calendar-month-outline"
             :disabled="exportDlg.loading || exportDlg.statements.length === 0"
+            multiple
+            chips
+            closable-chips
           />
           <div
             v-if="!exportDlg.loading && exportDlg.statements.length === 0"
@@ -193,9 +199,9 @@
           <v-btn
             color="primary"
             :loading="exportDlg.downloading"
-            :disabled="!exportDlg.statementId || !exportDlg.tenantId"
+            :disabled="!exportDlg.statementIds.length || !exportDlg.tenantIds.length"
             @click="exportPdfReport"
-            >Exportar</v-btn
+            >Exportar {{ exportTotal || "" }}</v-btn
           >
         </v-card-actions>
       </v-card>
@@ -234,16 +240,16 @@ const installmentsDlg = reactive({
 
 const exportDlg = reactive<{
   open: boolean;
-  tenantId: string;
+  tenantIds: string[];
   statements: Array<{ id: string; label: string; year: number; month: number }>;
-  statementId: string;
+  statementIds: string[];
   loading: boolean;
   downloading: boolean;
 }>({
   open: false,
-  tenantId: "",
+  tenantIds: [],
   statements: [],
-  statementId: "",
+  statementIds: [],
   loading: false,
   downloading: false,
 });
@@ -253,15 +259,9 @@ const headers = [
   { title: "Total", key: "reportExpensesTotal", align: "end" as const },
 ];
 
-const tenantOptions = computed(() => [
-  { id: "", name: "Selecione" },
-  ...tenants.value,
-]);
-
-const statementOptions = computed(() => [
-  { id: "", label: "Selecione" },
-  ...exportDlg.statements,
-]);
+const exportTotal = computed(
+  () => exportDlg.tenantIds.length * exportDlg.statementIds.length
+);
 
 function currency(v: string | number) {
   const n = Number(v || 0);
@@ -334,16 +334,17 @@ async function openExportDialog() {
     tenants.value = (await http.get("/tenants")).data || [];
   }
   exportDlg.open = true;
-  exportDlg.tenantId = "";
+  exportDlg.tenantIds = [];
   exportDlg.statements = [];
-  exportDlg.statementId = "";
+  exportDlg.statementIds = [];
   await loadExportStatements();
 }
 
 function closeExportDialog() {
   exportDlg.open = false;
+  exportDlg.tenantIds = [];
   exportDlg.statements = [];
-  exportDlg.statementId = "";
+  exportDlg.statementIds = [];
 }
 
 async function loadExportStatements() {
@@ -385,41 +386,39 @@ async function loadExportStatements() {
 }
 
 async function exportPdfReport() {
-  if (!exportDlg.statementId || !exportDlg.tenantId) return;
+  if (!exportDlg.statementIds.length || !exportDlg.tenantIds.length) return;
   exportDlg.downloading = true;
   try {
-    const st = exportDlg.statements.find((s) => s.id === exportDlg.statementId);
-    const tenant = tenants.value.find((t) => t.id === exportDlg.tenantId);
-    if (!st || !tenant) throw new Error("Dados inválidos");
-
-    const resp = await http.get(
-      `/reports/tenants/${tenant.id}/monthly-pdf`,
-      {
-        params: {
-          year: st.year,
-          month: st.month,
-        },
-        responseType: "blob",
-      }
+    const selectedStatements = exportDlg.statements.filter((statement) =>
+      exportDlg.statementIds.includes(statement.id)
     );
+    const selectedTenants = tenants.value.filter((tenant) =>
+      exportDlg.tenantIds.includes(tenant.id)
+    );
+    if (
+      selectedStatements.length !== exportDlg.statementIds.length ||
+      selectedTenants.length !== exportDlg.tenantIds.length
+    ) {
+      throw new Error("Dados inválidos");
+    }
 
-    const cd = resp.headers?.["content-disposition"] as string | undefined;
-    const filename =
-      parseFilenameFromContentDisposition(cd) ||
-      `relatório_${slug(tenant.name)}_${st.year}-${String(st.month).padStart(
-        2,
-        "0"
-      )}.pdf`;
+    for (const tenant of selectedTenants) {
+      for (const statement of selectedStatements) {
+        const resp = await http.get(`/reports/tenants/${tenant.id}/monthly-pdf`, {
+          params: {
+            year: statement.year,
+            month: statement.month,
+          },
+          responseType: "blob",
+        });
 
-    const blob = new Blob([resp.data], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+        const filename = `relatório_${slug(tenant.name)}_${statement.year}-${String(
+          statement.month
+        ).padStart(2, "0")}.pdf`;
+
+        await downloadPdf(resp.data, filename);
+      }
+    }
 
     closeExportDialog();
   } finally {
@@ -427,17 +426,17 @@ async function exportPdfReport() {
   }
 }
 
-function parseFilenameFromContentDisposition(cd?: string): string | null {
-  if (!cd) return null;
-  const m = /filename\*?=(?:UTF-8''|")?([^\";]+)\"?/.exec(cd);
-  if (m?.[1]) {
-    try {
-      return decodeURIComponent(m[1]);
-    } catch {
-      return m[1];
-    }
-  }
-  return null;
+async function downloadPdf(data: BlobPart, filename: string) {
+  const blob = new Blob([data], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  URL.revokeObjectURL(url);
 }
 
 function slug(s: string) {

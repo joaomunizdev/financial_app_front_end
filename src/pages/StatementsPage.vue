@@ -15,7 +15,7 @@
       @update:year="(v) => (year = v)"
       @update:month="(v) => (month = v)"
       @find="findByPeriod"
-      @generate="generate"
+      @generate="openGenerateDialog"
       @clear="load"
     />
     <v-row>
@@ -76,6 +76,67 @@
         </template>
       </v-data-table>
     </v-card>
+
+    <v-dialog v-model="generateDlg.open" max-width="620">
+      <v-card>
+        <v-card-title>Gerar faturas</v-card-title>
+        <v-card-text>
+          <div class="d-flex align-center justify-space-between mb-1">
+            <span class="text-body-2">Cartões</span>
+            <v-btn size="small" variant="text" @click="toggleAllCards">
+              {{ allCardsSelected ? "Limpar seleção" : "Selecionar todos" }}
+            </v-btn>
+          </div>
+          <v-select
+            v-model="generateDlg.creditCardIds"
+            :items="creditCards"
+            item-title="nickname"
+            item-value="id"
+            label="Cartões"
+            variant="outlined"
+            multiple
+            chips
+            closable-chips
+          />
+
+          <v-text-field
+            v-model.number="generateDlg.year"
+            type="number"
+            label="Ano"
+            variant="outlined"
+          />
+
+          <div class="d-flex align-center justify-space-between mb-1">
+            <span class="text-body-2">Meses</span>
+            <v-btn size="small" variant="text" @click="toggleAllMonths">
+              {{ allMonthsSelected ? "Limpar seleção" : "Selecionar todos" }}
+            </v-btn>
+          </div>
+          <v-select
+            v-model="generateDlg.months"
+            :items="months"
+            item-title="label"
+            item-value="value"
+            label="Meses"
+            variant="outlined"
+            multiple
+            chips
+            closable-chips
+          />
+        </v-card-text>
+        <v-card-actions class="justify-end">
+          <v-btn variant="text" @click="generateDlg.open = false">Cancelar</v-btn>
+          <v-btn
+            color="primary"
+            :loading="generateDlg.saving"
+            :disabled="!generationTotal || !generateDlg.year"
+            @click="generate"
+          >
+            Gerar {{ generationTotal || "" }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- View dialog -->
     <v-dialog v-model="openView" max-width="860">
@@ -151,7 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, reactive } from "vue";
 import { http } from "../stores/auth";
 import PeriodFilterBar from "../components/PeriodFilterBar.vue";
 
@@ -167,6 +228,26 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   label: new Date(2000, i, 1).toLocaleString("pt-BR", { month: "long" }),
   value: i + 1,
 }));
+
+const generateDlg = reactive({
+  open: false,
+  creditCardIds: [] as string[],
+  year: now.getFullYear(),
+  months: [] as number[],
+  saving: false,
+});
+
+const allCardsSelected = computed(
+  () =>
+    creditCards.value.length > 0 &&
+    generateDlg.creditCardIds.length === creditCards.value.length
+);
+const allMonthsSelected = computed(
+  () => generateDlg.months.length === months.length
+);
+const generationTotal = computed(
+  () => generateDlg.creditCardIds.length * generateDlg.months.length
+);
 
 const headers = [
   { title: "Período", key: "period" },
@@ -240,27 +321,57 @@ async function findByPeriod() {
   }
 }
 
+function openGenerateDialog() {
+  generateDlg.creditCardIds = creditCardId.value ? [creditCardId.value] : [];
+  generateDlg.year = year.value;
+  generateDlg.months = [month.value];
+  generateDlg.open = true;
+}
+
+function toggleAllCards() {
+  generateDlg.creditCardIds = allCardsSelected.value
+    ? []
+    : creditCards.value.map((card) => card.id);
+}
+
+function toggleAllMonths() {
+  generateDlg.months = allMonthsSelected.value
+    ? []
+    : months.map((item) => item.value);
+}
+
 async function generate() {
-  if (!creditCardId.value) return;
+  if (!generationTotal.value) return;
 
-  await http.post("/statements", {
-    creditCardId: creditCardId.value,
-    year: year.value,
-    month: month.value,
-  });
+  generateDlg.saving = true;
+  try {
+    for (const creditCardId of generateDlg.creditCardIds) {
+      for (const month of generateDlg.months) {
+        await http.post("/statements", {
+          creditCardId,
+          year: generateDlg.year,
+          month,
+        });
+      }
+    }
 
-  const created = (
-    await http.get("/statements", {
-      params: {
-        creditCardId: creditCardId.value,
-        year: year.value,
-        month: month.value,
-      },
-    })
-  ).data;
+    const statements = await Promise.all(
+      generateDlg.creditCardIds.flatMap((creditCardId) =>
+        generateDlg.months.map(async (month) => {
+          const { data } = await http.get("/statements", {
+            params: { creditCardId, year: generateDlg.year, month },
+          });
+          return Array.isArray(data) ? data : [data];
+        })
+      )
+    );
 
-  items.value = [created];
-  isFiltered.value = true;
+    items.value = statements.flat().filter(Boolean);
+    isFiltered.value = true;
+    generateDlg.open = false;
+  } finally {
+    generateDlg.saving = false;
+  }
 }
 
 const openView = ref(false);

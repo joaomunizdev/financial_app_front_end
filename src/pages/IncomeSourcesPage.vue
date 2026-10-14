@@ -18,6 +18,9 @@
         <template #item.amount="{ item }">
           {{ currencyCell(item.amount) }}
         </template>
+        <template #item.incomeType="{ item }">
+          {{ incomeTypeLabel(item.incomeType) }}
+        </template>
         <template #item.actions="{ item }">
           <v-btn icon variant="text" @click="edit(item)"
             ><v-icon>mdi-pencil</v-icon></v-btn
@@ -56,6 +59,14 @@
               :error-messages="errors.amount"
               @update:modelValue="onAmountInput"
             />
+            <v-select
+              v-model="form.incomeType"
+              :items="incomeTypes"
+              item-title="label"
+              item-value="value"
+              label="Tipo de renda"
+              :error-messages="errors.incomeType"
+            />
             <v-btn type="submit" :loading="saving" class="mt-2">Salvar</v-btn>
             <v-btn variant="text" class="mt-2 ml-2" @click="onCancel"
               >Cancelar</v-btn
@@ -83,9 +94,14 @@ const formRef = ref<any>(null);
 
 const items = ref<any[]>([]);
 const tenants = ref<any[]>([]);
+const incomeTypes = [
+  { label: "Fixa", value: "fixed" },
+  { label: "Pontual", value: "one_time" },
+] as const;
 const headers = [
   { title: "Responsável", key: "tenantName" },
   { title: "Descrição", key: "description" },
+  { title: "Tipo", key: "incomeType" },
   { title: "Valor", key: "amount", align: "end" as const },
   { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
@@ -99,6 +115,7 @@ type FormT = {
   tenantId: string;
   description: string;
   amount: string;
+  incomeType: "fixed" | "one_time";
 };
 
 const form = reactive<FormT>({
@@ -106,6 +123,7 @@ const form = reactive<FormT>({
   tenantId: "",
   description: "",
   amount: "",
+  incomeType: "fixed",
 });
 
 const errors = reactive<Record<keyof FormT | string, string[]>>({
@@ -113,6 +131,7 @@ const errors = reactive<Record<keyof FormT | string, string[]>>({
   tenantId: [],
   description: [],
   amount: [],
+  incomeType: [],
 });
 
 const schema = yup.object({
@@ -131,6 +150,10 @@ const schema = yup.object({
       const n = toNumberBRL(value);
       return !isNaN(n) && isFinite(n) && n >= 0;
     }),
+  incomeType: yup
+    .string()
+    .oneOf(["fixed", "one_time"])
+    .required("O tipo de renda é obrigatório"),
 });
 
 function clearErrors() {
@@ -144,6 +167,7 @@ function resetForm() {
     tenantId: "",
     description: "",
     amount: "",
+    incomeType: "fixed",
   });
 }
 
@@ -169,6 +193,7 @@ function edit(it: any) {
     tenantId: it.tenantId ?? it.tenant?.id ?? "",
     description: it.description ?? "",
     amount: toCurrencyBRL(it.amount ?? "0"),
+    incomeType: it.incomeType ?? "fixed",
   });
   clearErrors();
   open.value = true;
@@ -188,6 +213,10 @@ function onCancel() {
 
 function currencyCell(v: string | number) {
   return toCurrencyBRL(v);
+}
+
+function incomeTypeLabel(value: string) {
+  return incomeTypes.find((type) => type.value === value)?.label ?? "—";
 }
 
 async function fetchAll() {
@@ -218,6 +247,7 @@ async function save() {
       tenantId: form.tenantId,
       description: form.description.trim(),
       amount: Number(amount.toFixed(2)),
+      incomeType: form.incomeType,
     };
 
     if (form.id) await http.patch(`/income-sources/${form.id}`, body);
