@@ -27,7 +27,6 @@ It communicates with the Financial App Backend through a REST API and uses JWT a
 - Tenant management
 - Financial reports
 - Monthly and period-based filtering
-- Future installment visualization
 - Currency formatting
 - Reusable financial UI components
 - Centralized API error handling

@@ -10,14 +10,6 @@
       <div class="reports-actions">
         <v-btn
           color="primary"
-          prepend-icon="mdi-calendar-clock-outline"
-          variant="tonal"
-          @click="openInstallmentsDialog"
-        >
-          Parcelas futuras
-        </v-btn>
-        <v-btn
-          color="primary"
           prepend-icon="mdi-file-pdf-box"
           variant="flat"
           @click="openExportDialog"
@@ -88,76 +80,6 @@
         }}</template>
       </v-data-table>
     </v-card>
-    <v-dialog v-model="installmentsDlg.open" max-width="560">
-      <v-card>
-        <v-card-title>Parcelas futuras</v-card-title>
-        <v-card-text>
-          <v-select
-            v-model="installmentsDlg.creditCardId"
-            :items="cards"
-            item-title="nickname"
-            item-value="id"
-            label="Cartão"
-            prepend-inner-icon="mdi-credit-card-outline"
-          />
-          <v-select
-            v-model="installmentsDlg.tenantId"
-            :items="tenants"
-            item-title="name"
-            item-value="id"
-            label="Responsável"
-            prepend-inner-icon="mdi-account-outline"
-          />
-          <v-row>
-            <v-col cols="12" sm="6">
-              <v-text-field
-                v-model.number="installmentsDlg.year"
-                type="number"
-                label="Ano"
-                :min="MIN_YEAR"
-                :max="MAX_YEAR"
-              />
-            </v-col>
-            <v-col cols="12" sm="6">
-              <v-select
-                v-model.number="installmentsDlg.month"
-                :items="MONTHS"
-                item-title="label"
-                item-value="value"
-                label="Mês"
-              />
-            </v-col>
-          </v-row>
-          <v-sheet
-            v-if="installmentsDlg.totalAmount !== null"
-            class="pa-4 rounded-lg text-center"
-            color="surface-variant"
-          >
-            <div class="text-caption text-medium-emphasis">Total</div>
-            <div class="text-h5">
-              {{ toCurrencyBRL(installmentsDlg.totalAmount) }}
-            </div>
-          </v-sheet>
-        </v-card-text>
-        <v-card-actions class="justify-end">
-          <v-btn variant="text" @click="installmentsDlg.open = false"
-            >Fechar</v-btn
-          >
-          <v-btn
-            color="primary"
-            :loading="installmentsDlg.loading"
-            :disabled="
-              !installmentsDlg.creditCardId ||
-              !installmentsDlg.tenantId ||
-              !isValidYear(installmentsDlg.year)
-            "
-            @click="fetchInstallmentsTotal"
-          >
-            Consultar
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
     <v-dialog v-model="exportDlg.open" max-width="560">
       <v-card>
         <v-card-title>Exportar PDF mensal</v-card-title>
@@ -227,8 +149,6 @@ import { useToastStore } from "../stores/toast";
 import { withDetail } from "../utils/api-error";
 import {
   MONTHS,
-  MIN_YEAR,
-  MAX_YEAR,
   formatPeriod,
   isValidYear,
 } from "../utils/date";
@@ -254,16 +174,6 @@ const byTenant = ref<TenantReportRow[]>([]);
 const now = new Date();
 const year = ref(now.getFullYear());
 const month = ref(now.getMonth() + 1);
-
-const installmentsDlg = reactive({
-  open: false,
-  creditCardId: "",
-  tenantId: "",
-  year: now.getFullYear(),
-  month: now.getMonth() + 1,
-  totalAmount: null as string | null,
-  loading: false,
-});
 
 const exportDlg = reactive({
   open: false,
@@ -316,35 +226,6 @@ async function clearFilter() {
   year.value = now.getFullYear();
   month.value = now.getMonth() + 1;
   await fetchAll();
-}
-
-function openInstallmentsDialog() {
-  installmentsDlg.creditCardId = cards.value[0]?.id || "";
-  installmentsDlg.tenantId = tenants.value[0]?.id || "";
-  installmentsDlg.year = year.value;
-  installmentsDlg.month = month.value;
-  installmentsDlg.totalAmount = null;
-  installmentsDlg.open = true;
-}
-
-async function fetchInstallmentsTotal() {
-  installmentsDlg.loading = true;
-  try {
-    const { data } = await http.get<{ totalAmount: string }>(
-      "/reports/installments-total",
-      {
-        params: {
-          creditCardId: installmentsDlg.creditCardId,
-          tenantId: installmentsDlg.tenantId,
-          year: installmentsDlg.year,
-          month: installmentsDlg.month,
-        },
-      }
-    );
-    installmentsDlg.totalAmount = data?.totalAmount || "0.00";
-  } finally {
-    installmentsDlg.loading = false;
-  }
 }
 
 async function openExportDialog() {

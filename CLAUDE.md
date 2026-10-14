@@ -110,7 +110,7 @@ Single client: **`src/plugins/http.ts`** (default export). Never create another 
 | Purchases | CRUD `/purchases`; list filters `creditCardId`, `tenantId` (also `dateStart`, `dateEnd`, `isInstallment`, unused); `installmentsTotal/Paid` validated only when `isInstallment` |
 | Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items`; `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`). Inactive cards' statements are hidden |
 | Subscriptions / Fixed expenses / Income sources | CRUD; `description` ≤ 180; `tenantId` nullable in entities (SET NULL on tenant delete); income `incomeType: "fixed" \| "one_time"` |
-| Reports | `GET /reports/by-tenant?year&month` (also returns purchases/subscriptions/fixed/income/accumulated totals per tenant); `GET /reports/installments-total`; `GET /reports/tenants/:id/monthly-pdf` (blob) |
+| Reports | `GET /reports/by-tenant?year&month` (also returns purchases/subscriptions/fixed/income/accumulated totals per tenant); `GET /reports/installments-total` (not used by the UI); `GET /reports/tenants/:id/monthly-pdf` (blob) |
 
 Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — build payloads explicitly, never spread entities.
 
@@ -130,7 +130,7 @@ Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — b
 - **Statements**: list by period (+ optional card); "Limpar" resets to current month/all cards; batch generation runs sequentially, continues on failure and reports a summary; detail dialog edits dates, signed adjustment and lock, then re-reads the statement; pay dialog requires amount > 0 and a date (defaults: total, local today).
 - **Subscriptions**: client-side filters (search, card, status); validated form with money mask.
 - **Fixed expenses / Income sources**: tenant select, description ≤ 180, masked amount; income type default `fixed`.
-- **Reports**: by-tenant totals (zero rows hidden, numeric sort), "Total filtrado" = client sum of visible rows; installments total dialog; PDF export = tenants × periods (periods from one `GET /statements`), sequential downloads, failures summarized.
+- **Reports**: by-tenant totals (zero rows hidden, numeric sort), "Total filtrado" = client sum of visible rows; PDF export = tenants × periods (periods from one `GET /statements`), sequential downloads, failures summarized.
 
 Backend-owned rules: statement composition/totals, installment scheduling, report aggregation, PDF content, ownership checks, cascades.
 
