@@ -1,212 +1,177 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repository. The source code is the source of truth; `README.md` describes intent and in several places does not match the implementation (see "README vs. implementation").
+Guidance for Claude Code when working in this repository. The source code is the source of truth.
 
 ## 1. Project Overview
 
-Personal-finance SPA (credit cards, purchases/installments, statements, subscriptions, fixed expenses, income sources, tenants, reports). It is a thin client over the **Financial App Backend** REST API (separate repo: `joaomunizdev/financial_app_back_end`, Swagger at `http://localhost:3000/api/docs` when running locally). All financial calculations (statement totals, installment impact, report totals, PDF generation) live in the backend; the frontend renders, filters, formats and posts data.
+Personal-finance SPA (credit cards, purchases/installments, statements, subscriptions, fixed expenses, income sources, tenants, reports). It is a thin client over the **Financial App Backend** (NestJS, separate repo `joaomunizdev/financial_app_back_end`, usually checked out at `../financial_app_back_end`; Swagger at `http://localhost:3000/api/docs`). All financial calculations (statement composition/totals, installment impact, report aggregation, PDF generation) live in the backend; the frontend renders, filters, validates, formats and posts data.
 
-Stack (installed versions): Vue 3.5 (`<script setup lang="ts">`), TypeScript 5 (`strict`), Vite 5, Vuetify 3.9 (via `vite-plugin-vuetify`), Pinia 2, Vue Router 4, Axios 1, VeeValidate 4 + Yup 1, `@mdi/font`, Vitest 1. Sass is installed but no SFC uses `lang="scss"`; styles are plain scoped CSS.
+Stack: Vue 3.5 (`<script setup lang="ts">`), TypeScript 5 (`strict`), Vite 5, Vuetify 3.9 (components auto-imported by `vite-plugin-vuetify`), Pinia 2, Vue Router 4, Axios 1, VeeValidate 4 + Yup 1, `@mdi/font`, Vitest 1 + `@vue/test-utils` + happy-dom, `vue-tsc`.
 
-Language: identifiers, file names and API fields are English; **all user-facing text is pt-BR** (labels, toasts, validation messages). Money is BRL, dates displayed as `pt-BR`. The "tenant" entity is labeled **"Responsável"** in the UI.
+Language: identifiers, file names and API fields are English; **all user-facing text is pt-BR**. Money is BRL; dates displayed as pt-BR. The "tenant" entity is labeled **"Responsável"** in the UI. Backend error messages are English and are appended to pt-BR toasts as-is.
 
 ## 2. Architecture
 
 ```
 src/
-  main.ts                 # createApp + Pinia + router + vuetify + MDI css
-  App.vue                 # renders <AppShell/> only
+  main.ts                 # app bootstrap + app.config.errorHandler (ignores AxiosErrors, already reported)
+  App.vue                 # renders <AppShell/>
   components/
-    AppShell.vue          # Layout: auth layout vs. drawer/app-bar layout, nav items, page titles, global <v-snackbar> (toast)
-    FilterBar.vue         # year + month filter (used by ReportsPage)
-    PeriodFilterBar.vue   # card + year + month + find/generate/clear (used by StatementsPage)
-    PurchaseForm.vue      # VeeValidate form for purchases (used by PurchasesPage)
-    StatCard.vue          # label/value/icon card
-    ThemeSwitcher.vue     # toggles lightMinimal/darkMinimal, persists in localStorage "financial-app-theme"
-  composables/useCurrency.ts   # BRL parse/format helpers (only composable)
+    AppShell.vue          # auth layout vs. drawer/app-bar layout, nav items, page titles, global snackbar + <ConfirmDialog/>
+    ConfirmDialog.vue     # global confirmation dialog driven by stores/confirm
+    FilterBar.vue         # year + month (ReportsPage)
+    PeriodFilterBar.vue   # card + year + month + find/generate/clear (StatementsPage)
+    PurchaseForm.vue      # VeeValidate purchase form (PurchasesPage)
+    StatCard.vue, ThemeSwitcher.vue
+  composables/
+    useCurrency.ts        # BRL parse/format/mask + toApiMoney (payload format)
+    useFormErrors.ts      # Yup schema -> reactive per-field errors for :error-messages
   pages/*Page.vue         # one page per route; pages own their data fetching
-  plugins/
-    http.ts               # THE Axios instance (auth header, toasts, 401 handling) — default export
-    vuetify.ts            # themes + component defaults
-  router/index.ts         # routes + global auth guard
-  schemas/purchaseSchema.ts    # Yup schema used by PurchaseForm
-  stores/
-    auth.ts               # token/email, login/register/logout; also re-exports `http`
-    toast.ts              # global snackbar state
-    credit-cards.ts, purchases.ts, reports.ts, tenants.ts   # UNUSED (see §5)
-  api/http.ts             # UNUSED legacy Axios instance (see §12)
+  plugins/http.ts         # THE Axios instance (auth header, toasts, 401 handling)
+  plugins/vuetify.ts      # themes + component defaults (no global component registration)
+  router/index.ts         # routes, RouteMeta typing, auth guard, catch-all
+  schemas/                # purchaseSchema.ts (+ PurchaseFormValues), money.ts (moneyField)
+  stores/                 # auth.ts, toast.ts (queue), confirm.ts (promise-based)
+  types/domain.ts         # API entity types (CreditCard, Purchase, Statement, ...)
+  utils/                  # date.ts, jwt.ts, api-error.ts
+  test/                   # setup.ts (happy-dom shims), helpers.ts (fakeJwt)
 ```
 
-### Actual data flow
-
-```
-Page (<script setup>)  ──>  http (src/plugins/http.ts)  ──>  backend
-   local refs: items/loading/saving/open/form/errors
-   after every mutation: re-fetch the list (fetchAll / load / loadPurchases)
-```
-
-Pages do **not** go through Pinia domain stores. Only `auth` and `toast` stores are live. Each page fetches its own reference data (cards, tenants) in parallel with `Promise.all` on `onMounted`.
+Data flow: `Page (<script setup>, local refs) → http (plugins/http.ts) → backend`. After every mutation the page re-fetches its list. There are no domain Pinia stores; only `auth`, `toast` and `confirm` exist. Don't add domain stores unless the user asks.
 
 ## 3. Development Commands
 
 ```bash
-npm install            # or npm ci
-cp .env.example .env   # VITE_API_URL=http://localhost:3000/api
-npm run dev            # Vite dev server, port 5173
-npm run build          # vite build -> dist/ (NO type-checking step)
-npm run preview        # vite preview --host 0.0.0.0 --port 5173
-npm test               # vitest (watch mode). Use `npx vitest run` for a single run.
-docker compose up -d --build   # builds image and serves via vite preview on 5173
+npm install                 # or npm ci
+cp .env.example .env        # VITE_API_URL=http://localhost:3000/api
+npm run dev                 # Vite dev server on :5173
+npm run typecheck           # vue-tsc --noEmit
+npm run test:run            # vitest run (single run); `npm test` = watch mode
+npx vitest run <path>       # run specific spec files
+npm run build               # vite build -> dist/ (does NOT type-check; run typecheck too)
+npm run preview             # vite preview on :5173
+docker compose up -d --build                         # nginx image on http://localhost:5173
+VITE_API_URL=https://api.example.com/api docker compose up -d --build   # API URL is a BUILD arg
 ```
 
-Facts to keep in mind:
-- There are **no test files**; `npx vitest run` currently exits with code 1 ("No test files found").
-- There is **no working type-check command**: no `vue-tsc`, no `env.d.ts`, and `npx tsc --noEmit` fails on `node_modules` typings. `npm run build` succeeds but does not validate types. Do not claim types were checked unless you set up and ran an actual check (and adding tooling requires user approval).
-- No ESLint/Prettier config exists. Match the surrounding formatting (double quotes and semicolons in most files; a few stores use single quotes — follow the file you edit).
-- Production bundle has one ~610 kB chunk (Vuetify registers all components/directives); a size warning on build is expected.
+CI (`.github/workflows/ci.yml`): `npm ci → typecheck → test:run → build` on pushes to `main` and PRs.
 
 ## 4. Coding Conventions
 
 ### Components and pages
-- Always `<script setup lang="ts">`; Composition API only. Template first, then script, then `<style scoped>` (ThemeSwitcher is the exception with script first).
-- Pages: `src/pages/<Domain>Page.vue`, PascalCase. Routes are lazy-loaded in `router/index.ts`.
-- Props/emits are declared with type-only `defineProps<{...}>()` / `defineEmits<{ (e: "x", v: T): void }>()`.
-- Filter components use a "local ref + two-way watch" pattern: props `modelValueYear`/`modelValueMonth`/`modelValueCardId`, emit `update:year`/`update:month`/`update:cardId`, plus action events (`apply`, `find`, `generate`, `clear`). Parent binds with `@update:year="(v) => (year = v)"`. Follow this pattern when extending them.
-- CRUD page template (CreditCards, Tenants, FixedExpenses, IncomeSources, Subscriptions): header row (`text-h5` title + "Novo…" `v-btn prepend-icon="mdi-plus"`), `<v-card><v-data-table :items :headers :loading class="pa-2">`, an actions column (`mdi-pencil` edit, `mdi-delete` with `color="error"`), and a `<v-dialog v-model="open">` with the form. Title switches on `form.id` ("Editar …" / "Novo …").
-- Dialog reset convention: `watch(open, v => { if (!v) { resetForm(); clearErrors(); dialogKey.value++ } })` with `:key="dialogKey"` on the dialog.
-- Table headers: `{ title, key, align: "end" as const, sortable: false }`; money columns `align: "end"`; actions column has empty title.
-- Reusable dialogs with several fields are modeled as one `reactive({ open, ...fields, loading/saving })` object (see `generateDlg`, `installmentsDlg`, `exportDlg`).
-- Status values use `<v-chip variant="tonal" size="small">` with `primary`/`secondary`/`success` colors.
+- `<script setup lang="ts">`, Composition API only. Template, script, then `<style scoped>`.
+- Pages: `src/pages/<Domain>Page.vue`; routes lazy-loaded. Props/emits declared type-only (`defineProps<{...}>()`, `defineEmits<{ (e: "x", v: T): void }>()`).
+- `<script setup>` must not export types; put shared form types next to their schema (e.g. `PurchaseFormValues` in `schemas/purchaseSchema.ts`).
+- CRUD page template: header (`text-h5` + "Novo…" button calling `openNew()`), `<v-card><v-data-table :items :headers :loading class="pa-2">`, actions column (`mdi-pencil` / `mdi-delete color="error"`, both with `aria-label`), `<v-dialog v-model="open">` with the form. Page wrapper: `d-flex flex-column ga-6`.
+- Dialog reset: `openNew()` resets the form explicitly; `watch(open, v => !v && reset)` + `:key="dialogKey"` on the dialog.
+- Multi-field dialogs are one `reactive({ open, loading/saving, ... })` object (`generateDlg`, `detailDlg`, `payDlg`, `exportDlg`).
+- Filter bars use "local ref + two-way watch": props `modelValue*`, emits `update:*` + action events. Invalid years are not emitted (`isValidYear`, API range 2000–2100).
+- Spacing: Vuetify `ga-*`/`ma-*`/`pa-*` utilities (`gap-*` is not a Vuetify class). No empty `<v-row>` spacers.
 
 ### TypeScript
-- `strict` is on, but existing code uses `any` heavily for API entities (`ref<any[]>`, `(it: any)`). There are no shared entity types. For **new or touched code**, prefer local `type` aliases (as in `SubscriptionsPage.vue`: `type Subscription = {...}`, and form types `type FormT = {...}`) instead of adding more `any`. Don't introduce a global types layer unless asked.
-- API ids are strings (UUID-like); money fields arrive from the API as decimal strings (e.g. `"0.00"`); `year`/`month` are numbers, month is 1-based.
+- No `any`. Use `types/domain.ts` for API entities and type HTTP calls (`http.get<CreditCard[]>(...)`). Local view-model types extend them (e.g. `FixedExpense & { tenantName: string }`).
+- Form state types live in the page (`type FormT = {...}`) with an `emptyForm()` factory.
 
-### Composables and helpers
-- `useCurrency()` is the canonical BRL helper: `toNumberBRL` (parses "R$ 1.234,56", "1234.56", etc.), `toCurrencyBRL`, `formatCurrencyOnType` (cents-based input mask), `digitsOnly(v, maxLen)`, `sanitizeCurrencyInput`, `formatCurrencyString`. Use it for new money inputs/display.
-- Several pages still define a local `currency(v)` (Number + `toLocaleString("pt-BR", BRL)`), `formatDateBR(d)` (with `timeZone: "UTC"` — keep UTC so ISO dates don't shift a day), and a pt-BR `months` array. Reuse these patterns; if you need them in a new place, prefer `useCurrency` and consider extracting only when the user asks for refactoring.
+### Money and dates (critical)
+- **API money is a string with ≤ 2 decimals** (backend `IsMoney`, e.g. `"1500.00"`; adjustments may be negative). Always build payloads with `toApiMoney(value)` from `useCurrency`. Never send numbers or raw user text.
+- Money inputs: mask with `formatCurrencyOnType` (non-negative) or `sanitizeCurrencyInput` + `toDecimalBRL` (signed, e.g. statement adjustment); validate with `moneyField({ allowNegative?, positive?, requiredMessage? })` from `schemas/money.ts`.
+- Display money with `useCurrency().toCurrencyBRL`. Keep numeric values numeric in table rows so columns sort correctly; format in item slots.
+- Dates: API uses `"YYYY-MM-DD"`. Default "today" is `todayLocalISO()` (never `toISOString().slice(0,10)` — UTC shifts the day in Brazil after 21:00). Bind `<input type="date">` via `toDateInput()`. Display with `formatDateBR()` (UTC on purpose). Periods: `formatPeriod(year, month)`, months list `MONTHS` (1-based).
 
-### Styling
-- Vuetify components + utility classes. Theme colors via `rgb(var(--v-theme-primary))`; global defaults (outlined/comfortable fields, `rounded="lg"` buttons, `rounded="xl"` cards) are set in `plugins/vuetify.ts` — don't repeat them per component unless overriding.
-- Note: `gap-2`/`gap-3`/`gap-4` used throughout are **not Vuetify classes** (Vuetify 3 uses `ga-*`) and currently have no effect. For new spacing use `ga-*` or scoped CSS `gap:`. Pages also use empty `<v-row><v-col cols="12"></v-col>…</v-row>` blocks as vertical spacers; don't spread this further.
+### Validation
+- Default pattern: inline Yup schema + `useFormErrors(schema, ["field", ...] as const)` → `errors`, `validateAll(form)`, `validateField(field, form)`, `clearErrors()`; bind `:error-messages="errors.field"`. Messages in pt-BR. Mirror backend DTO limits (lengths, `MinLength(6)` passwords, email format).
+- `PurchaseForm` uses VeeValidate `useForm` + `purchaseSchema` (date kept as a string, never cast to `Date`).
 
 ## 5. State Management (Pinia)
 
-Live stores (options API `defineStore`):
-- `auth` (`stores/auth.ts`): state `token` (initialized from `localStorage["token"]`), `email`; getter `isAuthenticated = !!token`; actions `register`, `login` (stores token, shows toast, waits `REQUEST_DELAY_MS`), `logout({ silent? })`, `hydrateFromStorage()`. It also does `export { default as http } from "../plugins/http"` — several pages import `http` from here; it is the same instance as `plugins/http`.
-- `toast` (`stores/toast.ts`): `show({ message, color: "success" | "error", timeout = 3500 })`, `hide()`. Rendered once by `AppShell.vue`.
-
-Unused stores: `credit-cards.ts`, `purchases.ts`, `reports.ts`, `tenants.ts` are imported nowhere. They are partial (e.g. no update/delete for cards) and call endpoints like `/reports/global` and `POST /purchases/:id/installments-paid` that no page uses. Do not assume they reflect current behavior. When adding features, follow the page-local pattern unless the user asks to migrate to stores; don't delete these files without approval.
-
-Loading/error state is page-local: `loading` for list fetches, `saving` for submits, `detailLoading`/dialog `loading` for secondary fetches, always reset in `finally`.
+- `auth`: `token` (localStorage key `"token"`, dropped when expired), `isAuthenticated`, `register`, `login`, `logout({ silent? })`, `clearSession()`, `syncSession()` (re-reads storage, drops expired tokens; called by the router guard on every navigation). Login/logout wait 900 ms so their toast is visible before the full-page reload — this is the only intentional delay.
+- `toast`: `show({ message, color?: "success" | "error", timeout? })`; messages are queued, never overwritten. Rendered by AppShell.
+- `confirm`: `await useConfirmStore().ask({ title, message, confirmText? })` → `boolean`. **Every destructive action must go through it.**
+- Loading flags are page-local and reset in `finally`.
 
 ## 6. API Integration
 
-Single HTTP client: **`src/plugins/http.ts`** (default export; also available as `import { http } from "../stores/auth"`). Never use `src/api/http.ts` or create a new Axios instance.
+Single client: **`src/plugins/http.ts`** (default export). Never create another Axios instance.
 
-- `baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000/api"`. Paths are relative (`/credit-cards`), never hard-code hosts.
-- Request interceptor: adds `Authorization: Bearer <auth.token>`; attaches `__toastMeta` for mutating requests on known entities.
-- **Automatic toasts**: for `POST`→create, `PUT/PATCH`→update, `DELETE`→delete, when the URL matches `ENTITY_MATCHERS` (`/purchases`, `/credit-cards`, `/fixed-expenses`, `/income-sources`, `/tenants`, `/auth/register`, `/users`). The response is **delayed by `REQUEST_DELAY_MS` (900 ms)** and a pt-BR success/error toast is shown. Consequences:
-  - Do not add manual success/error toasts for these entities (they would duplicate).
-  - `/statements` and `/subscriptions` are **not** matched → no toast, no delay. If a new entity needs toasts, add a matcher (entity name in pt-BR) rather than calling the toast store from the page.
-  - Any new POST under a matched path (e.g. `/purchases/:id/...`) will show a "cadastro de Compra" toast.
-- Response error interceptor: on **401** → `auth.logout({ silent: true })` and `location.assign("/login")` (unless already there). Errors are always re-thrown.
-- GET failures have no user-facing feedback (no toast); pages generally don't `catch`. `StatementsPage.findByPeriod` treats 404 as empty result. Keep `try/finally` for loading flags; add `catch` only where you need specific UX.
+- `baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000/api"`; relative paths only.
+- Adds `Authorization: Bearer <token>`.
+- **Automatic toasts** (no artificial delay): POST/PUT/PATCH/DELETE on paths in `ENTITY_MATCHERS` (statements incl. `/:id/pay` → "pagamento de Fatura", subscriptions, purchases, credit cards, fixed expenses, income sources, tenants, register) show success/error toasts; failed **GETs** show "Não foi possível carregar os dados." Error toasts append the backend detail via `utils/api-error.ts` (4xx `message`; 5xx → "Erro interno do servidor."; no response → connection message).
+  - Don't add manual toasts for these requests. For a new entity, add a matcher (pt-BR name).
+  - Pass `{ skipToast: true }` when the caller reports the outcome itself (batch operations, 404-is-normal lookups) — see `StatementsPage.generate/fetchStatements`, `ReportsPage.exportPdfReport`.
+- **401**: clears the session once and `location.assign("/login")`; no toast.
+- Errors are re-thrown. Pages use `try/finally` (no empty `catch`); `app.config.errorHandler` in `main.ts` swallows AxiosErrors because the interceptor already reported them. Add a `catch` only for specific UX (e.g. keeping a batch going).
 
-### Endpoints used by the UI
-| Domain | Calls |
+### Endpoint notes (verified against the backend)
+| Domain | Notes |
 |---|---|
-| Auth | `POST /auth/login {email,password}` → `{accessToken}`; `POST /auth/register {name,email,password}` |
-| Credit cards | `GET /credit-cards`; `POST`; `PATCH /:id`; `DELETE /:id` — body `{nickname, brand, last4, limitAmount:number}` |
-| Tenants | `GET /tenants` (client-side name search); `POST`/`PATCH /:id` `{name}`; `DELETE /:id` |
-| Purchases | `GET /purchases` (supports `creditCardId`, `tenantId` params; UI currently sends none); `POST`; `PATCH /:id`; `DELETE /:id` — body from `PurchaseForm` |
-| Statements | `GET /statements?year&month[&creditCardId]` (array; code also tolerates a single object); `GET /statements?creditCardId`; `POST /statements {creditCardId,year,month}` (generate); `GET /statements/:id` (detail with `items[] {label, amount}`); `PATCH /statements/:id {closingDate,dueDate,locked,adjustmentAmount}`; `POST /statements/:id/pay {amount, paidAt}` |
-| Subscriptions | `GET/POST /subscriptions`; `PATCH/DELETE /subscriptions/:id` — body `{creditCardId, tenantId, description, amount:string, active}` |
-| Fixed expenses | `GET/POST /fixed-expenses`; `PATCH/DELETE /:id` — `{tenantId, description, amount:number}`; list items include `tenant.name` |
-| Income sources | `GET/POST /income-sources`; `PATCH/DELETE /:id` — `{tenantId, description, amount:number, incomeType: "fixed"|"one_time"}` |
-| Reports | `GET /reports/by-tenant?year&month` → `[{tenantName, reportExpensesTotal}]`; `GET /reports/installments-total?creditCardId&tenantId&year&month` → `{totalAmount}`; `GET /reports/tenants/:id/monthly-pdf?year&month` (`responseType: "blob"`) |
+| Auth | `POST /auth/login` → `{ accessToken }` (JWT, `exp` = 1 day); `POST /auth/register` (409 if email exists) |
+| Credit cards | CRUD `/credit-cards`; delete **cascades statements/subscriptions** and fails (500, FK) if purchases exist |
+| Tenants | CRUD `/tenants`; delete → 403 "Tenant has purchases" when it has purchases |
+| Purchases | CRUD `/purchases`; list filters `creditCardId`, `tenantId` (also `dateStart`, `dateEnd`, `isInstallment`, unused); `installmentsTotal/Paid` validated only when `isInstallment` |
+| Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items`; `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`) — **only for locked statements** (400 otherwise). Inactive cards' statements are hidden |
+| Subscriptions / Fixed expenses / Income sources | CRUD; `description` ≤ 180; `tenantId` nullable in entities (SET NULL on tenant delete); income `incomeType: "fixed" \| "one_time"` |
+| Reports | `GET /reports/by-tenant?year&month` (also returns purchases/subscriptions/fixed/income/accumulated totals per tenant); `GET /reports/installments-total` (not used by the UI); `GET /reports/tenants/:id/monthly-pdf` (blob) |
 
-Payload money formats are inconsistent across domains (number with 2 decimals vs. decimal string). **Preserve each domain's existing format** — the backend contract is not visible here; verify in Swagger before changing.
+Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — build payloads explicitly, never spread entities.
 
 ## 7. Routing and Authentication
 
-- `createWebHistory`; `/` → `/dashboard`. Protected routes have `meta: { auth: true }`; `/login` and `/register` have `meta: { layout: "auth" }` (AppShell switches layout on `route.meta.layout === "auth"`).
-- Guard (`router.beforeEach`): hydrates token from localStorage if missing; `meta.auth && !isAuthenticated` → `/login`; authenticated user on `/login`/`/register` → `/dashboard`.
-- Token: raw JWT stored in `localStorage["token"]`. No decoding, no expiry check, no refresh — the session ends only via logout or a backend 401.
-- Post-login/logout/register navigation uses `location.assign(...)` (full reload), not `router.push`. Keep that unless deliberately changing auth flow (a reload guarantees clean store state).
-- Register flow: `register` then immediately `login` with the same credentials.
-- Adding a page requires three edits: route in `router/index.ts` (with `meta: { auth: true }`), nav item in `AppShell.vue` `items`, and title in AppShell's `title` map.
+- `RouteMeta` is typed (`auth?`, `layout?: "auth"`). Protected routes: `meta: { auth: true }`; `/login`, `/register`: `meta: { layout: "auth" }`. Unknown paths redirect to `/dashboard` (then the guard sends unauthenticated users to `/login`).
+- Guard: `auth.syncSession()`, then `auth && !isAuthenticated → /login`; auth-layout routes while authenticated → `/dashboard`.
+- Login/register/logout navigate with `location.assign` (full reload). Keep it unless deliberately reworking the auth flow.
+- Adding a page = route (with `meta`) + AppShell nav item + AppShell title map + page.
 
-## 8. Business Domains (frontend-implemented behavior only)
+## 8. Business Domains (frontend behavior)
 
-- **Dashboard** (`DashboardPage.vue`): fetches cards + tenants; shows card count, tenant count, and combined limit (sum of `limitAmount`, falls back to `limitamount`). "Cartões ativos" lists all cards (no active filter exists). No income/expense/balance data.
-- **Credit cards** (`CreditCardsPage.vue`): inline Yup schema — nickname/brand required, `last4` exactly 4 digits (input sanitized with `digitsOnly`), limit must parse to a non-negative BRL number; limit input uses `formatCurrencyOnType` mask and is sent as `Number(n.toFixed(2))`. Cards are reference data for purchases, statements, subscriptions, reports.
-- **Tenants** (`TenantsPage.vue`): name required; per-field validation on blur; search is client-side. Tenants are referenced by purchases, subscriptions, fixed expenses, income sources and reports — deletions may be rejected/cascaded by the backend.
-- **Purchases** (`PurchasesPage.vue` + `PurchaseForm.vue` + `schemas/purchaseSchema.ts`): the only VeeValidate form. Rules: card, tenant, description, positive `totalAmount`, valid `purchaseDate` required; if `isInstallment`, `installmentsTotal` integer ≥ 2 and `installmentsPaid` integer 0..installmentsTotal. Amount input is masked (`maskedTotalAmount`) while the form field holds a number. `PurchaseForm` reads `modelValue` only into `initialValues` (no re-init on prop change) and emits `submit` with `{...values, id}`; the page strips `id` and POSTs/PATCHes. Installment amounts per month are computed by the backend.
-- **Statements** (`StatementsPage.vue` + `PeriodFilterBar.vue`): list by year/month (+ optional card); "Gerar fatura" dialog generates for every selected card × month **sequentially** (one POST each), then reloads those periods; detail dialog edits closing/due dates (free-text `YYYY-MM-DD`), adjustment amount, and `locked`; lock toggle from the table; pay dialog posts amount/date (defaults: statement total, today). `isFiltered` decides whether refresh uses `findByPeriod` or `load`. Statement totals/items come from the backend.
-- **Subscriptions** (`SubscriptionsPage.vue`): card/status filters and description search are client-side (`applyFilters` is a no-op; filtering is reactive). Amount is free text, `,` replaced with `.`, sent as string; no form validation. New form preselects first card/tenant.
-- **Fixed expenses** / **Income sources**: same CRUD pattern with tenant select, description, masked BRL amount; income adds `incomeType` (`fixed` → "Fixa", `one_time` → "Pontual"), default `fixed`.
-- **Reports** (`ReportsPage.vue` + `FilterBar.vue`): by-tenant totals for year/month; rows with total 0 are hidden; "Total filtrado" is the **client-side sum** of the visible rows (not `/reports/global`). The table value is pre-formatted to a currency string (so sorting is lexical). "Parcelas futuras" queries the backend installments total for card+tenant+period. "Exportar PDF" builds the period list from existing statements of all cards (deduplicated by `MM/YYYY`), then downloads one PDF per tenant × period sequentially via blob + temporary `<a download>`.
-- **Period filters**: months are 1-based numbers with pt-BR long names; defaults are the current year/month.
+- **Dashboard**: card count, tenant count, combined limit (sum of `limitAmount`), card and tenant lists.
+- **Credit cards**: nickname ≤ 80, brand ≤ 50, `last4` exactly 4 digits, limit money ≥ 0 (required in the UI).
+- **Tenants**: name ≤ 120, client-side search.
+- **Purchases**: filters by card/tenant (server-side params); `PurchaseForm` rules: card, tenant, description ≤ 255, amount > 0, date `YYYY-MM-DD`; installments: total integer ≥ 2, paid 0..total. Payload sends `installmentsTotal: null, installmentsPaid: 0` for one-time purchases.
+- **Statements**: list by period (+ optional card); "Limpar" resets to current month/all cards; batch generation runs sequentially, continues on failure and reports a summary; detail dialog edits dates, signed adjustment and lock, then re-reads the statement; pay dialog requires amount > 0 and a date (defaults: total, local today) and locks an open statement first (`skipToast`, so only the payment toast shows); the lock toggle shows its own "fechada/reaberta" toasts.
+- **Subscriptions**: client-side filters (search, card, status); validated form with money mask.
+- **Fixed expenses / Income sources**: tenant select, description ≤ 180, masked amount; income type default `fixed`.
+- **Reports**: by-tenant totals (zero rows hidden, numeric sort), "Total filtrado" = client sum of visible rows; PDF export = tenants × periods (periods from one `GET /statements`), sequential downloads, failures summarized.
 
-Rules NOT implemented in the frontend (backend responsibility): statement composition and totals, installment scheduling, report aggregation, PDF content, ownership/authorization of data, cascading deletes.
+Backend-owned rules: statement composition/totals, installment scheduling, report aggregation, PDF content, ownership checks, cascades.
 
 ## 9. UI and Forms
 
-- Themes: `lightMinimal` (default) and `darkMinimal` defined in `plugins/vuetify.ts`; logos swap between `assets/logo.png` and `assets/white-logo.png` by theme. New colors should be theme tokens, not hard-coded hex.
-- Responsiveness: AppShell drawer becomes rail/expand-on-hover on `mdAndDown`; pages use `v-row`/`v-col cols="12" md="…"` and flex-wrap filter sheets.
-- Validation has two coexisting patterns — follow the one already used by the page you edit:
-  1. VeeValidate `useForm({ validationSchema })` + `defineField` (PurchaseForm; schema in `src/schemas/`).
-  2. Inline Yup schema + `reactive` `errors: Record<field, string[]>` + `validateAll()` with `abortEarly: false`, bound via `:error-messages` (CreditCards, Tenants, FixedExpenses, IncomeSources).
-  For a new standalone form, pattern 2 is the most common; put a reusable schema in `src/schemas/` only when it's shared or used with VeeValidate.
-- Validation messages in pt-BR.
-- Empty states: `v-alert type="info" variant="tonal"` (Dashboard) or `#no-data` slot (Subscriptions).
-- Notifications: global snackbar via `useToastStore().show(...)`; prefer the interceptor's automatic toasts for CRUD.
+- Themes `lightMinimal`/`darkMinimal` (`plugins/vuetify.ts`); use theme tokens, not hex.
+- Responsiveness: drawer rails on `mdAndDown`; use `v-row/v-col` and `flex-wrap` sheets.
+- Empty states: `v-alert type="info" variant="tonal"` or the table `#no-data` slot.
+- Icon-only buttons need `aria-label`.
 
 ## 10. Testing and Quality
 
-Current state: Vitest is installed with default config (no `vitest.config.*`, no `@vue/test-utils`, no jsdom/happy-dom). No tests exist.
-
-- Pure logic (e.g. `useCurrency`, `purchaseSchema`) can be tested with Vitest as-is: colocate as `*.spec.ts` (Vitest default include `**/*.{test,spec}.?(c|m)[jt]s?(x)`) and run `npx vitest run <path>`.
-- Component/page tests need `@vue/test-utils` and a DOM environment — new dev dependencies; ask before adding.
-- Store tests need `setActivePinia(createPinia())`; `plugins/http.ts` imports stores, so mock `axios`/the http module rather than hitting the network.
-
-Validation checklist for every change:
-1. `npm run build` succeeds (catches template/SFC compile errors, not type errors).
-2. If you added tests: `npx vitest run` for the relevant files.
-3. Type safety: review manually (no type-check script exists); don't widen to `any`.
-4. Exercise loading, error (backend down / 4xx), and empty-list states of the affected page.
-5. If the backend is available (`VITE_API_URL`), verify requests/payloads against Swagger.
-6. Check dependent pages: changes to cards/tenants affect Purchases, Statements, Subscriptions, FixedExpenses, IncomeSources, Reports, Dashboard; changes to `plugins/http.ts` affect every request and toast.
-Only report a check as done if you actually ran it.
+- Specs are colocated as `*.spec.ts` under `src/` (`vite.config.ts` → `test`: happy-dom, `setupFiles: src/test/setup.ts`, Vuetify inlined).
+- Patterns in place:
+  - Pure logic: `useCurrency`, `utils/*`, `schemas/*`.
+  - Stores: `setActivePinia(createPinia())` per test; fake timers for the toast queue.
+  - HTTP interceptors: replace `http.defaults.adapter` with a canned response (`plugins/http.spec.ts`); `vi.stubGlobal("location", ...)` for redirects.
+  - Components/pages: `mount(..., { global: { plugins: [pinia, createVuetify()] } })`; mock `../plugins/http` with `vi.mock` + `vi.hoisted`; access `<script setup>` bindings via `wrapper.vm`; vee-validate needs several `flushPromises()` + small timeouts before asserting messages.
+- Checklist for every change:
+  1. `npm run typecheck`
+  2. `npm run test:run` (add/adjust specs for changed logic)
+  3. `npm run build`
+  4. Exercise loading, error (backend down / 4xx) and empty states of affected pages.
+  5. When the backend is available, verify payloads against its DTOs (`../financial_app_back_end/src/presentation/dtos`) or Swagger.
+  6. Check dependents: cards/tenants feed Purchases, Statements, Subscriptions, Fixed expenses, Income sources, Reports, Dashboard; `plugins/http.ts` affects every request.
+  Only report a check as done if it was actually run.
 
 ## 11. Development Guidelines
 
-- Read the target page and its siblings before changing anything; copy the closest existing pattern rather than inventing one.
-- Keep changes in scope. No opportunistic refactors (e.g. migrating pages to stores, deduplicating `currency()`/`formatDateBR`/`months`, replacing `any`) unless requested — mention them instead.
-- Reuse `http`, `useCurrency`, `StatCard`, `FilterBar`/`PeriodFilterBar`, and existing Vuetify defaults. Don't add dependencies when Vuetify/Yup/VeeValidate/Axios cover the need.
-- Respect existing API payload shapes and field names; never rename fields or change number/string money formats without confirming the backend contract.
-- Every async action: set its loading flag, reset in `finally`, and refresh the affected list after mutations (current convention is re-fetch, not optimistic update).
-- Bug fixes: reproduce from the code path, fix minimally, check whether the same bug pattern exists in sibling pages and report it (fix only if asked).
-- New domain page: route + AppShell nav item + AppShell title + page following the CRUD template; add an `ENTITY_MATCHERS` entry if it should get automatic toasts.
-- Ask before destructive actions (deleting files including the unused stores/`api/http.ts`, changing auth storage, altering Docker/build config).
+- Read the target page and its siblings first; copy the closest existing pattern.
+- Stay in scope; mention (don't do) unrelated refactors.
+- Reuse `http`, `useCurrency`, `useFormErrors`, `moneyField`, `utils/date`, `useConfirmStore`, `StatCard`, filter bars. No new dependencies when existing tools suffice.
+- Respect API contracts (string money, explicit payloads, `forbidNonWhitelisted`).
+- Async actions: loading flag + `finally`; re-fetch after mutations.
+- Bug fixes: fix minimally, add a spec reproducing the bug when practical, check sibling pages for the same pattern.
+- Ask before destructive or wide changes (deleting files, auth storage, Docker/CI/build config).
 
-## 12. Important Constraints and Known Pitfalls
+## 12. Important Constraints
 
-- **One HTTP client.** `src/plugins/http.ts` owns auth headers, toasts, the 900 ms mutation delay and 401 handling. `src/api/http.ts` is dead code and reads a different key (`localStorage["accessToken"]`) than the auth store (`"token"`) — using it would send unauthenticated requests.
-- **Circular import**: `plugins/http.ts` ⇄ `stores/auth.ts`. It works because stores are resolved lazily inside interceptors/actions; keep `useAuthStore()`/`useToastStore()` calls inside functions, never at module top level.
-- **Sensitive data**: financial data and JWT live in the browser. Don't log API responses/tokens to the console, don't persist financial data in localStorage, keep the token key `token` unless changing the whole auth flow.
-- `LoginPage.vue` pre-fills `admin@example.com` / `Admin@123` (dev convenience) — don't propagate; flag if asked about production readiness.
-- `VITE_*` vars are **build-time**. `docker-compose.yml` sets `VITE_API_URL` as a runtime env var, which does not affect the already-built bundle; there is no `.dockerignore`, so a local `.env` is copied into the Docker build context and used at build time.
-- `PurchasesPage`: "Nova" doesn't reset `form` (after closing an edit dialog without saving, "Nova" reopens in edit mode), and `PurchaseForm` initializes from `modelValue` only once.
-- `StatementsPage`: `@clear` calls `load()` without resetting filters; `clearFilter()` is unused.
-- `TenantsPage.vue` has a stray `<` text node at the top of the template.
-- Unused code: `stores/{credit-cards,purchases,reports,tenants}.ts`, `CreditCardsPage.openNew`, `PurchasesPage.filters`, `SubscriptionsPage.applyFilters`, `api/http.ts`.
-
-### README vs. implementation
-- README flow "Page → Pinia Store → Axios" — pages call Axios directly; domain stores are unused.
-- README Dashboard "combines purchases, subscriptions, fixed expenses, income, balance" — it only shows cards, tenants and combined limit.
-- README "cards have Active status" — no active field in the card UI/payload.
-- README says filter bars serve statements/purchases/reports — `FilterBar` is only in Reports, `PeriodFilterBar` only in Statements; Purchases has no filter UI.
-- README "income used to calculate balance" — not done in the frontend.
-- README `npm test` — no tests exist; command runs Vitest in watch mode and finds nothing.
+- One HTTP client; keep `useAuthStore()`/`useToastStore()` calls inside functions in `plugins/http.ts` (circular import `http ⇄ auth` is safe only that way).
+- Sensitive data: never log API responses or tokens; don't persist financial data in localStorage. JWT in localStorage is a known XSS trade-off (no CSP yet — Vuetify inline styles make a strict CSP non-trivial).
+- `VITE_*` variables are build-time: Docker takes `VITE_API_URL` as a build arg; `.dockerignore` keeps `.env` out of the image. Production image is nginx (`nginx.conf`: SPA fallback, asset caching, security headers).
+- Backend CORS allows `FRONTEND_ORIGIN` (default `http://localhost:5173`) — keep the dev/Docker port 5173 or update the backend.
+- Known backend issues (not frontend bugs): deleting a card with purchases returns 500 (FK violation) instead of a 4xx.

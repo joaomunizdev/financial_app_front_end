@@ -1,7 +1,14 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 
-const routes = [
+declare module "vue-router" {
+  interface RouteMeta {
+    auth?: boolean;
+    layout?: "auth";
+  }
+}
+
+const routes: RouteRecordRaw[] = [
   {
     path: "/login",
     component: () => import("../pages/LoginPage.vue"),
@@ -58,6 +65,7 @@ const routes = [
     component: () => import("../pages/SubscriptionsPage.vue"),
     meta: { auth: true },
   },
+  { path: "/:pathMatch(.*)*", redirect: "/dashboard" },
 ];
 
 const router = createRouter({
@@ -67,11 +75,10 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore();
-  if (!auth.token) auth.hydrateFromStorage();
+  auth.syncSession();
 
   if (to.meta.auth && !auth.isAuthenticated) return "/login";
-  if ((to.path === "/login" || to.path === "/register") && auth.isAuthenticated)
-    return "/dashboard";
+  if (to.meta.layout === "auth" && auth.isAuthenticated) return "/dashboard";
   return true;
 });
 

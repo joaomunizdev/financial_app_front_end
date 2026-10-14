@@ -1,13 +1,30 @@
-import axios, { AxiosRequestConfig } from "axios";
+import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "../stores/auth";
 import { useToastStore } from "../stores/toast";
+import { withDetail } from "../utils/api-error";
 
-type ToastAction = "create" | "update" | "delete";
+type ToastAction = "create" | "update" | "delete" | "pay";
 type ToastMeta = { action: ToastAction; entity: string };
 
-export const REQUEST_DELAY_MS = 900;
+declare module "axios" {
+  interface AxiosRequestConfig {
+    /** Disables automatic success/error toasts; the caller handles feedback. */
+    skipToast?: boolean;
+  }
+  interface InternalAxiosRequestConfig {
+    toastMeta?: ToastMeta | null;
+  }
+}
 
-const ENTITY_MATCHERS: Array<{ matcher: RegExp; entity: string }> = [
+// Order matters: the first match wins.
+const ENTITY_MATCHERS: Array<{
+  matcher: RegExp;
+  entity: string;
+  action?: ToastAction;
+}> = [
+  { matcher: /\/statements\/[^/?]+\/pay\b/i, entity: "Fatura", action: "pay" },
+  { matcher: /\/statements\b/i, entity: "Fatura" },
+  { matcher: /\/subscriptions\b/i, entity: "Assinatura" },
   { matcher: /\/purchases\b/i, entity: "Compra" },
   { matcher: /\/credit-cards\b/i, entity: "Cartão" },
   { matcher: /\/fixed-expenses\b/i, entity: "Despesa fixa" },
@@ -21,6 +38,7 @@ const ACTION_TITLES: Record<ToastAction, string> = {
   create: "cadastro",
   update: "edição",
   delete: "exclusão",
+  pay: "pagamento",
 };
 
 function resolveAction(method?: string): ToastAction | null {
@@ -31,19 +49,13 @@ function resolveAction(method?: string): ToastAction | null {
   return null;
 }
 
-function resolveEntity(config: AxiosRequestConfig): string | null {
+function extractToastMeta(config: InternalAxiosRequestConfig): ToastMeta | null {
+  const methodAction = resolveAction(config.method);
+  if (!methodAction) return null;
   const target = `${config.baseURL ?? ""}${config.url ?? ""}`;
-  if (!target) return null;
   const found = ENTITY_MATCHERS.find(({ matcher }) => matcher.test(target));
-  return found?.entity ?? null;
-}
-
-function extractToastMeta(config: AxiosRequestConfig): ToastMeta | null {
-  const action = resolveAction(config.method);
-  if (!action) return null;
-  const entity = resolveEntity(config);
-  if (!entity) return null;
-  return { action, entity };
+  if (!found) return null;
+  return { action: found.action ?? methodAction, entity: found.entity };
 }
 
 function buildMessage(meta: ToastMeta, success: boolean) {
@@ -54,19 +66,6 @@ function buildMessage(meta: ToastMeta, success: boolean) {
   return `Não foi possível concluir o processo de ${actionLabel} de ${meta.entity}.`;
 }
 
-function showToast(meta: ToastMeta, success: boolean) {
-  const toast = useToastStore();
-  toast.show({
-    message: buildMessage(meta, success),
-    color: success ? "success" : "error",
-  });
-}
-
-function delayRequest(meta: ToastMeta | null) {
-  if (!meta) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY_MS));
-}
-
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
   withCredentials: false,
@@ -74,37 +73,46 @@ const http = axios.create({
 
 http.interceptors.request.use((config) => {
   const auth = useAuthStore();
-  const token = auth.token;
-  if (token) {
-    config.headers = config.headers ?? {};
-    (config.headers as any).Authorization = `Bearer ${token}`;
-  }
-  const meta = extractToastMeta(config);
-  if (meta) (config as any).__toastMeta = meta;
+  if (auth.token) config.headers.Authorization = `Bearer ${auth.token}`;
+  config.toastMeta = config.skipToast ? null : extractToastMeta(config);
   return config;
 });
 
+let redirectingToLogin = false;
+
 http.interceptors.response.use(
-  async (res) => {
-    const meta = ((res.config as any)?.__toastMeta ?? null) as ToastMeta | null;
+  (res) => {
+    const meta = res.config.toastMeta;
     if (meta) {
-      await delayRequest(meta);
-      showToast(meta, true);
+      useToastStore().show({ message: buildMessage(meta, true), color: "success" });
     }
     return res;
   },
-  async (err) => {
-    const meta = ((err.config as any)?.__toastMeta ?? null) as ToastMeta | null;
-    if (meta) {
-      await delayRequest(meta);
-      showToast(meta, false);
-    }
-    const status = err?.response?.status;
+  async (err: AxiosError) => {
+    const config = err.config;
+    const status = err.response?.status;
+
     if (status === 401) {
       const auth = useAuthStore();
-      await auth.logout({ silent: true });
-      if (location.pathname !== "/login") {
-        location.assign("/login");
+      // Login failures are reported by the auth store; other 401s mean the session ended.
+      if (auth.token && !redirectingToLogin) {
+        redirectingToLogin = true;
+        auth.clearSession();
+        if (location.pathname !== "/login") location.assign("/login");
+      }
+      return Promise.reject(err);
+    }
+
+    if (config && !config.skipToast) {
+      const meta = config.toastMeta;
+      const isRead = (config.method ?? "get").toLowerCase() === "get";
+      if (meta) {
+        useToastStore().show({ message: withDetail(buildMessage(meta, false), err), color: "error" });
+      } else if (isRead) {
+        useToastStore().show({
+          message: withDetail("Não foi possível carregar os dados.", err),
+          color: "error",
+        });
       }
     }
     return Promise.reject(err);

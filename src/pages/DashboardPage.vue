@@ -3,7 +3,7 @@
     <v-row class="dashboard-stats-row">
       <v-col cols="12" md="4">
         <StatCard
-          label="Cartões ativos"
+          label="Cartões cadastrados"
           :value="cards.length.toString()"
           icon="mdi-credit-card-multiple-outline"
         />
@@ -18,7 +18,7 @@
       <v-col cols="12" md="4">
         <StatCard
           label="Limite combinado"
-          :value="currency(totalLimit)"
+          :value="toCurrencyBRL(totalLimit)"
           icon="mdi-wallet-outline"
         />
       </v-col>
@@ -28,8 +28,14 @@
       <v-col cols="12" md="8">
         <v-card>
           <v-card-title class="d-flex align-center justify-space-between">
-            Cartões ativos
-            <v-btn icon variant="text" @click="refresh" :loading="loading">
+            Cartões cadastrados
+            <v-btn
+              icon
+              variant="text"
+              aria-label="Atualizar"
+              :loading="loading"
+              @click="fetchDashboard"
+            >
               <v-icon>mdi-refresh</v-icon>
             </v-btn>
           </v-card-title>
@@ -46,7 +52,7 @@
                   <div class="text-right">
                     <div class="text-caption text-medium-emphasis">Limite</div>
                     <div class="text-body-2 font-weight-medium">
-                      {{ currency(card.limitAmount || card.limitamount || 0) }}
+                      {{ toCurrencyBRL(card.limitAmount ?? 0) }}
                     </div>
                   </div>
                 </template>
@@ -68,7 +74,6 @@
                 v-for="tenant in tenants"
                 :key="tenant.id"
                 :title="tenant.name"
-                :subtitle="tenant.email || tenant.document || ''"
               >
                 <template #prepend>
                   <v-avatar color="primary" variant="tonal">
@@ -91,26 +96,25 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { http } from "../stores/auth";
+import http from "../plugins/http";
 import StatCard from "../components/StatCard.vue";
+import { useCurrency } from "../composables/useCurrency";
+import type { CreditCard, Tenant } from "../types/domain";
+
+const { toCurrencyBRL } = useCurrency();
 
 const loading = ref(false);
-const cards = ref<any[]>([]);
-const tenants = ref<any[]>([]);
+const cards = ref<CreditCard[]>([]);
+const tenants = ref<Tenant[]>([]);
 
 const totalLimit = computed(() =>
   cards.value.reduce((sum, card) => {
-    const limit = Number(card.limitAmount ?? card.limitamount ?? 0);
+    const limit = Number(card.limitAmount ?? 0);
     return sum + (isNaN(limit) ? 0 : limit);
   }, 0)
 );
 
-function currency(v: string | number) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function cardSubtitle(card: any) {
+function cardSubtitle(card: CreditCard) {
   const suffix = card.last4 ? `Final ${card.last4}` : "";
   if (card.brand && suffix) return `${card.brand} • ${suffix}`;
   if (card.brand) return card.brand;
@@ -121,18 +125,14 @@ async function fetchDashboard() {
   loading.value = true;
   try {
     const [cardRes, tenantRes] = await Promise.all([
-      http.get("/credit-cards"),
-      http.get("/tenants"),
+      http.get<CreditCard[]>("/credit-cards"),
+      http.get<Tenant[]>("/tenants"),
     ]);
     cards.value = cardRes.data || [];
     tenants.value = tenantRes.data || [];
   } finally {
     loading.value = false;
   }
-}
-
-function refresh() {
-  fetchDashboard();
 }
 
 onMounted(fetchDashboard);

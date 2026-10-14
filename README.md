@@ -27,7 +27,6 @@ It communicates with the Financial App Backend through a REST API and uses JWT a
 - Tenant management
 - Financial reports
 - Monthly and period-based filtering
-- Future installment visualization
 - Currency formatting
 - Reusable financial UI components
 - Centralized API error handling
@@ -60,55 +59,28 @@ The application is organized around pages, reusable components, Pinia stores, AP
 
 ```text
 src/
-├── api/
-│   └── http.ts
-│
-├── assets/
-│   ├── logo.png
-│   └── white-logo.png
-│
+├── assets/                 # logos
 ├── components/
-│   ├── AppShell.vue
+│   ├── AppShell.vue        # layout, navigation, global toast and confirmation dialog
+│   ├── ConfirmDialog.vue
 │   ├── FilterBar.vue
 │   ├── PeriodFilterBar.vue
 │   ├── PurchaseForm.vue
 │   ├── StatCard.vue
 │   └── ThemeSwitcher.vue
-│
 ├── composables/
-│   └── useCurrency.ts
-│
-├── pages/
-│   ├── CreditCardsPage.vue
-│   ├── DashboardPage.vue
-│   ├── FixedExpensesPage.vue
-│   ├── IncomeSourcesPage.vue
-│   ├── LoginPage.vue
-│   ├── PurchasesPage.vue
-│   ├── RegisterPage.vue
-│   ├── ReportsPage.vue
-│   ├── StatementsPage.vue
-│   ├── SubscriptionsPage.vue
-│   └── TenantsPage.vue
-│
+│   ├── useCurrency.ts      # BRL parsing, formatting, input masks, API money format
+│   └── useFormErrors.ts    # Yup validation -> per-field error messages
+├── pages/                  # one page per route
 ├── plugins/
-│   ├── http.ts
+│   ├── http.ts             # Axios client: JWT, toasts, error handling, 401
 │   └── vuetify.ts
-│
-├── router/
-│   └── index.ts
-│
-├── schemas/
-│   └── purchaseSchema.ts
-│
-├── stores/
-│   ├── auth.ts
-│   ├── credit-cards.ts
-│   ├── purchases.ts
-│   ├── reports.ts
-│   ├── tenants.ts
-│   └── toast.ts
-│
+├── router/index.ts
+├── schemas/                # purchaseSchema.ts, money.ts
+├── stores/                 # auth.ts, toast.ts, confirm.ts
+├── types/domain.ts         # API entity types
+├── utils/                  # date.ts, jwt.ts, api-error.ts
+├── test/                   # test setup and helpers
 ├── App.vue
 └── main.ts
 ```
@@ -116,16 +88,18 @@ src/
 The typical frontend flow is:
 
 ```text
-Vue Page / Component
+Vue Page (local state)
        ↓
-Pinia Store
-       ↓
-Axios HTTP Client
+Axios HTTP Client (src/plugins/http.ts)
        ↓
 Financial App Backend
        ↓
 PostgreSQL
 ```
+
+Pinia is used for cross-cutting state only: authentication, toasts and the confirmation dialog.
+
+Monetary values are sent to the API as strings with two decimals (for example `"1500.00"`), matching the backend validation.
 
 ## Application Pages
 
@@ -217,6 +191,8 @@ the application:
 1. Clears the local authentication state.
 2. Removes the stored token.
 3. Redirects the user to the login page.
+
+The JWT expiration (`exp`) is also checked on every navigation, so an expired session goes straight to the login page without first failing API calls.
 
 ## Centralized Notifications
 
@@ -570,9 +546,10 @@ VITE_API_URL
 
 ## Production Build
 
-Build the application:
+Type-check and build the application:
 
 ```bash
+npm run typecheck
 npm run build
 ```
 
@@ -590,10 +567,16 @@ npm run preview
 
 ## Running with Docker
 
-Build and start the frontend:
+Build and start the frontend (served by nginx at `http://localhost:5173`):
 
 ```bash
 docker compose up -d --build
+```
+
+`VITE_API_URL` is embedded at build time, so it is passed as a build argument. To point the image to another API, rebuild it:
+
+```bash
+VITE_API_URL=https://api.example.com/api docker compose up -d --build
 ```
 
 View container status:
@@ -664,13 +647,15 @@ http://localhost:3000/api/docs
 
 ## Testing
 
-The project uses Vitest.
-
-Run tests with:
+The project uses Vitest, Vue Test Utils and happy-dom. Specs live next to the code as `*.spec.ts`.
 
 ```bash
-npm test
+npm run test:run   # single run
+npm test           # watch mode
+npm run typecheck  # vue-tsc
 ```
+
+GitHub Actions runs type-check, tests and build on every push to `main` and on pull requests.
 
 ## Related Repository
 

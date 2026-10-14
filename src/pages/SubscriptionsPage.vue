@@ -1,25 +1,19 @@
 <template>
-  <div class="d-flex flex-column gap-4">
+  <div class="d-flex flex-column ga-6">
     <div class="d-flex align-center justify-space-between">
       <div class="text-h5">Assinaturas</div>
       <v-btn prepend-icon="mdi-plus" @click="openCreate">
         Nova assinatura
       </v-btn>
     </div>
-    <v-row>
-      <v-col cols="12"></v-col>
-      <v-col cols="12"></v-col>
-    </v-row>
     <v-sheet
-      class="pa-3 rounded-xl d-flex flex-wrap align-center gap-3"
+      class="pa-3 rounded-xl d-flex flex-wrap align-center ga-3"
       color="surface"
       elevation="1"
     >
       <v-text-field
         v-model="search"
         label="Buscar por descrição"
-        variant="outlined"
-        density="comfortable"
         hide-details
         prepend-inner-icon="mdi-magnify"
         style="min-width: 280px"
@@ -30,8 +24,7 @@
         item-title="nickname"
         item-value="id"
         label="Cartão"
-        variant="outlined"
-        density="comfortable"
+        clearable
         hide-details
         prepend-inner-icon="mdi-credit-card-outline"
         style="min-width: 240px"
@@ -42,16 +35,11 @@
         item-title="label"
         item-value="value"
         label="Status"
-        variant="outlined"
-        density="comfortable"
         hide-details
         prepend-inner-icon="mdi-toggle-switch-outline"
         style="min-width: 180px"
       />
       <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-filter" @click="applyFilters"
-        >Aplicar</v-btn
-      >
       <v-btn
         variant="text"
         prepend-icon="mdi-filter-remove-outline"
@@ -59,10 +47,6 @@
         >Limpar</v-btn
       >
     </v-sheet>
-    <v-row>
-      <v-col cols="12"></v-col>
-      <v-col cols="12"></v-col>
-    </v-row>
     <v-card>
       <v-data-table
         :headers="headers"
@@ -72,7 +56,7 @@
         class="pa-2"
       >
         <template #item.amount="{ item }">
-          {{ currency(item.amount) }}
+          {{ toCurrencyBRL(item.amount) }}
         </template>
 
         <template #item.active="{ item }">
@@ -94,10 +78,15 @@
         </template>
 
         <template #item.actions="{ item }">
-          <v-btn icon variant="text" @click="openEdit(item)"
+          <v-btn icon variant="text" aria-label="Editar" @click="openEdit(item)"
             ><v-icon>mdi-pencil</v-icon></v-btn
           >
-          <v-btn icon variant="text" color="error" @click="remove(item)"
+          <v-btn
+            icon
+            variant="text"
+            color="error"
+            aria-label="Excluir"
+            @click="remove(item)"
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
@@ -116,17 +105,15 @@
           form.id ? "Editar assinatura" : "Nova assinatura"
         }}</v-card-title>
         <v-card-text>
-          <v-form ref="formRef" @submit.prevent="save">
+          <v-form @submit.prevent="save">
             <v-select
               v-model="form.creditCardId"
               :items="cards"
               item-title="nickname"
               item-value="id"
               label="Cartão"
-              required
-              variant="outlined"
-              density="comfortable"
               prepend-inner-icon="mdi-credit-card-outline"
+              :error-messages="errors.creditCardId"
             />
             <v-select
               v-model="form.tenantId"
@@ -134,27 +121,21 @@
               item-title="name"
               item-value="id"
               label="Responsável"
-              required
-              variant="outlined"
-              density="comfortable"
               prepend-inner-icon="mdi-account-outline"
+              :error-messages="errors.tenantId"
             />
             <v-text-field
-              v-model.trim="form.description"
+              v-model="form.description"
               label="Descrição"
-              required
-              variant="outlined"
-              density="comfortable"
+              maxlength="180"
+              :error-messages="errors.description"
             />
             <v-text-field
               v-model="form.amount"
               label="Valor (BRL)"
-              hint="Use ponto para decimais. Ex.: 49.90"
-              persistent-hint
-              required
-              variant="outlined"
-              density="comfortable"
               prepend-inner-icon="mdi-currency-brl"
+              :error-messages="errors.amount"
+              @update:modelValue="onAmountInput"
             />
             <v-switch v-model="form.active" inset label="Ativa?" class="mt-2" />
             <div class="mt-4">
@@ -171,33 +152,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from "vue";
-import { http } from "../stores/auth";
+import { ref, reactive, computed, onMounted, watch } from "vue";
+import http from "../plugins/http";
+import * as yup from "yup";
+import { useCurrency } from "../composables/useCurrency";
+import { useFormErrors } from "../composables/useFormErrors";
+import { moneyField } from "../schemas/money";
+import { useConfirmStore } from "../stores/confirm";
+import type {
+  CreditCard,
+  SelectOption,
+  Subscription,
+  Tenant,
+} from "../types/domain";
 
-type Subscription = {
-  id: string;
-  creditCardId: string;
-  description: string;
-  amount: string;
-  tenantId: string;
-  active: boolean;
-  createdAt?: string;
-};
-
-type Card = { id: string; nickname: string };
+const { toCurrencyBRL, formatCurrencyOnType, toApiMoney } = useCurrency();
+const confirm = useConfirmStore();
 
 const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
-const formRef = ref();
 
 const items = ref<Subscription[]>([]);
-const cards = ref<Card[]>([]);
-const tenants = ref<any[]>([]);
+const cards = ref<CreditCard[]>([]);
+const tenants = ref<Tenant[]>([]);
 const search = ref("");
-const filterCardId = ref<string>("");
+const filterCardId = ref<string | null>(null);
 const filterActive = ref<boolean | null>(null);
-const activeOptions = [
+const activeOptions: SelectOption<boolean | null>[] = [
   { label: "Todas", value: null },
   { label: "Ativas", value: true },
   { label: "Inativas", value: false },
@@ -212,28 +194,52 @@ const headers = [
   { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
 
-const form = reactive<Partial<Subscription>>({
+type FormT = {
+  id: string;
+  creditCardId: string;
+  tenantId: string;
+  description: string;
+  amount: string;
+  active: boolean;
+};
+
+const form = reactive<FormT>({
   id: "",
   creditCardId: "",
-  description: "",
   tenantId: "",
+  description: "",
   amount: "",
   active: true,
 });
 
-function tenantName(tenantId: string) {
-  const t = tenants.value.find((t) => t.id === tenantId);
-  return t?.name ?? "—";
+const schema = yup.object({
+  creditCardId: yup.string().required("O cartão é obrigatório"),
+  tenantId: yup.string().required("O responsável é obrigatório"),
+  description: yup
+    .string()
+    .trim()
+    .required("Descrição é obrigatória")
+    .max(180, "Máximo de 180 caracteres"),
+  amount: moneyField(),
+});
+
+const { errors, clearErrors, validateAll } = useFormErrors(schema, [
+  "creditCardId",
+  "tenantId",
+  "description",
+  "amount",
+] as const);
+
+function onAmountInput(val: string) {
+  form.amount = formatCurrencyOnType(val);
 }
 
-function currency(v: string | number) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+function tenantName(tenantId: string | null) {
+  return tenants.value.find((t) => t.id === tenantId)?.name ?? "—";
 }
 
 function cardNickname(cardId: string) {
-  const c = cards.value.find((c) => c.id === cardId);
-  return c?.nickname ?? "—";
+  return cards.value.find((c) => c.id === cardId)?.nickname ?? "—";
 }
 
 const filteredItems = computed(() => {
@@ -245,13 +251,9 @@ const filteredItems = computed(() => {
   return data;
 });
 
-function applyFilters() {
-
-}
-
 function clearFilters() {
   search.value = "";
-  filterCardId.value = "";
+  filterCardId.value = null;
   filterActive.value = null;
 }
 
@@ -264,21 +266,34 @@ function openCreate() {
     amount: "",
     active: true,
   });
+  clearErrors();
   open.value = true;
 }
 
 function openEdit(it: Subscription) {
-  Object.assign(form, it);
+  Object.assign(form, {
+    id: it.id,
+    creditCardId: it.creditCardId,
+    tenantId: it.tenantId ?? "",
+    description: it.description ?? "",
+    amount: toCurrencyBRL(it.amount ?? "0"),
+    active: it.active,
+  });
+  clearErrors();
   open.value = true;
 }
+
+watch(open, (v) => {
+  if (!v) clearErrors();
+});
 
 async function fetchAll() {
   loading.value = true;
   try {
     const [subs, cc, tn] = await Promise.all([
-      http.get("/subscriptions"),
-      http.get("/credit-cards"),
-      http.get("/tenants"),
+      http.get<Subscription[]>("/subscriptions"),
+      http.get<CreditCard[]>("/credit-cards"),
+      http.get<Tenant[]>("/tenants"),
     ]);
     items.value = subs.data || [];
     cards.value = cc.data || [];
@@ -291,12 +306,14 @@ async function fetchAll() {
 async function save() {
   saving.value = true;
   try {
+    if (!(await validateAll(form))) return;
+
     const payload = {
       creditCardId: form.creditCardId,
       tenantId: form.tenantId,
-      description: String(form.description || "").trim(),
-      amount: String(form.amount || "0").replace(",", "."),
-      active: !!form.active,
+      description: form.description.trim(),
+      amount: toApiMoney(form.amount),
+      active: form.active,
     };
     if (form.id) await http.patch(`/subscriptions/${form.id}`, payload);
     else await http.post("/subscriptions", payload);
@@ -308,6 +325,11 @@ async function save() {
 }
 
 async function remove(it: Subscription) {
+  const confirmed = await confirm.ask({
+    title: "Excluir assinatura",
+    message: `Deseja excluir a assinatura "${it.description}"? Essa ação não pode ser desfeita.`,
+  });
+  if (!confirmed) return;
   await http.delete(`/subscriptions/${it.id}`);
   await fetchAll();
 }
