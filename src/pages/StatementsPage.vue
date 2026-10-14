@@ -67,15 +67,26 @@
             @click="view(item)"
             ><v-icon>mdi-eye</v-icon></v-btn
           >
-          <v-btn
-            icon
-            variant="text"
-            :aria-label="item.locked ? 'Reabrir fatura' : 'Fechar fatura'"
-            @click="toggleLock(item)"
-            ><v-icon>{{
-              item.locked ? "mdi-lock-open-variant-outline" : "mdi-lock-outline"
-            }}</v-icon></v-btn
+          <!-- The icon shows the current state; the tooltip names the action. -->
+          <v-tooltip
+            :text="item.locked ? 'Reabrir fatura' : 'Fechar fatura'"
+            location="top"
           >
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                icon
+                variant="text"
+                :aria-label="item.locked ? 'Reabrir fatura' : 'Fechar fatura'"
+                @click="toggleLock(item)"
+                ><v-icon>{{
+                  item.locked
+                    ? "mdi-lock-outline"
+                    : "mdi-lock-open-variant-outline"
+                }}</v-icon></v-btn
+              >
+            </template>
+          </v-tooltip>
           <v-btn
             icon
             variant="text"
