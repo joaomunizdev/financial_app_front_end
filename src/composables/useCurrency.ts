@@ -52,6 +52,21 @@ export function useCurrency() {
     return brl.format(isNaN(value) ? 0 : value);
   }
 
+  /** Payload format expected by the backend `IsMoney` validator, e.g. "1500.00". */
+  function toApiMoney(v: string | number): string {
+    const n = toNumberBRL(v);
+    return (isNaN(n) ? 0 : n).toFixed(2);
+  }
+
+  /** "1.234,56" / "-10,00" — editable pt-BR decimal without the currency symbol. */
+  function toDecimalBRL(v: string | number): string {
+    const n = toNumberBRL(v);
+    return (isNaN(n) ? 0 : n).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
   return {
     toNumberBRL,
     toCurrencyBRL,
@@ -59,5 +74,7 @@ export function useCurrency() {
     formatCurrencyString,
     digitsOnly,
     formatCurrencyOnType,
+    toApiMoney,
+    toDecimalBRL,
   };
 }
