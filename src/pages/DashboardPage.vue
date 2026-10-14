@@ -49,7 +49,14 @@
                 :subtitle="cardSubtitle(card)"
               >
                 <template #append>
-                  <div class="text-right">
+                  <v-chip
+                    v-if="card.cardType === 'debit'"
+                    color="secondary"
+                    variant="tonal"
+                    size="small"
+                    >Débito</v-chip
+                  >
+                  <div v-else class="text-right">
                     <div class="text-caption text-medium-emphasis">Limite</div>
                     <div class="text-body-2 font-weight-medium">
                       {{ toCurrencyBRL(card.limitAmount ?? 0) }}

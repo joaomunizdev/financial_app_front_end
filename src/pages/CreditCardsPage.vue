@@ -11,8 +11,17 @@
         :loading="loading"
         class="pa-2"
       >
+        <template #item.cardType="{ item }">
+          <v-chip
+            :color="item.cardType === 'debit' ? 'secondary' : 'primary'"
+            variant="tonal"
+            size="small"
+          >
+            {{ cardTypeLabel(item.cardType) }}
+          </v-chip>
+        </template>
         <template #item.limitAmount="{ item }">
-          {{ toCurrencyBRL(item.limitAmount ?? 0) }}
+          {{ item.cardType === "debit" ? "—" : toCurrencyBRL(item.limitAmount ?? 0) }}
         </template>
         <template #item.actions="{ item }">
           <v-btn icon variant="text" aria-label="Editar" @click="edit(item)"
@@ -57,7 +66,21 @@
               :error-messages="errors.last4"
               @input="form.last4 = digitsOnly(form.last4, 4)"
             />
+            <v-select
+              v-model="form.cardType"
+              :items="cardTypes"
+              item-title="label"
+              item-value="value"
+              label="Tipo"
+              :hint="
+                form.cardType === 'debit'
+                  ? 'Cartão de débito não aceita compras parceladas.'
+                  : ''
+              "
+              persistent-hint
+            />
             <v-text-field
+              v-if="form.cardType === 'credit'"
               v-model="form.limitAmount"
               label="Limite (BRL)"
               :error-messages="errors.limitAmount"
@@ -82,7 +105,7 @@ import { useCurrency } from "../composables/useCurrency";
 import { useFormErrors } from "../composables/useFormErrors";
 import { moneyField } from "../schemas/money";
 import { useConfirmStore } from "../stores/confirm";
-import type { CreditCard } from "../types/domain";
+import type { CardType, CreditCard, SelectOption } from "../types/domain";
 
 const { toCurrencyBRL, digitsOnly, formatCurrencyOnType, toApiMoney } =
   useCurrency();
@@ -94,13 +117,22 @@ const open = ref(false);
 const dialogKey = ref(0);
 
 const items = ref<CreditCard[]>([]);
+const cardTypes: SelectOption<CardType>[] = [
+  { label: "Crédito", value: "credit" },
+  { label: "Débito", value: "debit" },
+];
 const headers = [
   { title: "Apelido", key: "nickname" },
   { title: "Bandeira", key: "brand" },
+  { title: "Tipo", key: "cardType" },
   { title: "Final", key: "last4" },
   { title: "Limite", key: "limitAmount", align: "end" as const },
   { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
+
+function cardTypeLabel(value: CardType) {
+  return cardTypes.find((t) => t.value === value)?.label ?? "—";
+}
 
 function onLimitInput(val: string) {
   form.limitAmount = formatCurrencyOnType(val);
@@ -112,6 +144,7 @@ type FormT = {
   brand: string;
   last4: string;
   limitAmount: string;
+  cardType: CardType;
 };
 
 const emptyForm = (): FormT => ({
@@ -120,7 +153,11 @@ const emptyForm = (): FormT => ({
   brand: "",
   last4: "",
   limitAmount: "",
+  cardType: "credit",
 });
+
+// Type as loaded from the API, to detect a credit → debit change on save.
+const originalCardType = ref<CardType | null>(null);
 
 const form = reactive<FormT>(emptyForm());
 
@@ -139,7 +176,13 @@ const schema = yup.object({
     .string()
     .required("Final é obrigatório")
     .matches(/^\d{4}$/, "Final deve conter exatamente 4 dígitos"),
-  limitAmount: moneyField({ requiredMessage: "Limite é obrigatório" }),
+  cardType: yup.string().oneOf(["credit", "debit"]).required(),
+  // Debit cards have no limit.
+  limitAmount: yup.string().when("cardType", {
+    is: "credit",
+    then: () => moneyField({ requiredMessage: "Limite é obrigatório" }),
+    otherwise: (schema) => schema.notRequired(),
+  }),
 });
 
 const { errors, clearErrors, validateAll } = useFormErrors(schema, [
@@ -151,6 +194,7 @@ const { errors, clearErrors, validateAll } = useFormErrors(schema, [
 
 function openNew() {
   Object.assign(form, emptyForm());
+  originalCardType.value = null;
   clearErrors();
   open.value = true;
 }
@@ -162,7 +206,9 @@ function edit(it: CreditCard) {
     brand: it.brand ?? "",
     last4: digitsOnly(String(it.last4 ?? ""), 4),
     limitAmount: toCurrencyBRL(it.limitAmount ?? "0"),
+    cardType: it.cardType ?? "credit",
   });
+  originalCardType.value = it.cardType ?? "credit";
   clearErrors();
   open.value = true;
 }
@@ -194,11 +240,25 @@ async function save() {
   try {
     if (!(await validateAll(form))) return;
 
+    const becomesDebit =
+      !!form.id && originalCardType.value === "credit" && form.cardType === "debit";
+    if (becomesDebit) {
+      const confirmed = await confirm.ask({
+        title: "Mudar para cartão de débito",
+        message:
+          "Cartão de débito não aceita compras parceladas. As compras parceladas deste cartão serão divididas em compras individuais, uma por mês, com o mesmo valor de cada parcela. As faturas já existentes mantêm seus valores. Essa conversão não pode ser desfeita.",
+        confirmText: "Converter",
+      });
+      if (!confirmed) return;
+    }
+
+    const isCredit = form.cardType === "credit";
     const body = {
       nickname: form.nickname.trim(),
       brand: form.brand.trim(),
       last4: form.last4,
-      limitAmount: toApiMoney(form.limitAmount),
+      cardType: form.cardType,
+      limitAmount: isCredit ? toApiMoney(form.limitAmount) : null,
     };
 
     if (form.id) await http.patch(`/credit-cards/${form.id}`, body);
