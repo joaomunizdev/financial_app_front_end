@@ -9,12 +9,16 @@ export interface Tenant {
   name: string;
 }
 
+/** Debit cards only accept one-time purchases. */
+export type CardType = "credit" | "debit";
+
 export interface CreditCard {
   id: string;
   nickname: string;
   brand: string;
   last4: string;
   limitAmount: Money | null;
+  cardType: CardType;
   active: boolean;
 }
 
