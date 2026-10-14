@@ -105,7 +105,7 @@ Single client: **`src/plugins/http.ts`** (default export). Never create another 
 | Domain | Notes |
 |---|---|
 | Auth | `POST /auth/login` → `{ accessToken }` (JWT, `exp` = 1 day); `POST /auth/register` (409 if email exists) |
-| Credit cards | CRUD `/credit-cards`; delete **cascades statements/subscriptions** and fails (500, FK) if purchases exist |
+| Credit cards | CRUD `/credit-cards`; `cardType: "credit" \| "debit"` (debit: `limitAmount` null, no installment purchases → 400). **PATCH credit→debit converts the card's installment purchases into monthly one-time purchases** (`"<desc> (k/n)"`, statement totals unchanged; irreversible). Delete → 409 if the card has purchases or statements (deactivate with `PATCH {active:false}`) |
 | Tenants | CRUD `/tenants`; delete → 403 "Tenant has purchases" when it has purchases |
 | Purchases | CRUD `/purchases`; list filters `creditCardId`, `tenantId` (also `dateStart`, `dateEnd`, `isInstallment`, unused); `installmentsTotal/Paid` validated only when `isInstallment` |
 | Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items`; `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`) — **only for locked statements** (400 otherwise). Inactive cards' statements are hidden |
@@ -124,9 +124,9 @@ Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — b
 ## 8. Business Domains (frontend behavior)
 
 - **Dashboard**: card count, tenant count, combined limit (sum of `limitAmount`), card and tenant lists.
-- **Credit cards**: nickname ≤ 80, brand ≤ 50, `last4` exactly 4 digits, limit money ≥ 0 (required in the UI).
+- **Credit cards**: nickname ≤ 80, brand ≤ 50, `last4` exactly 4 digits, type Crédito/Débito; limit money ≥ 0 required for credit, hidden and sent as `null` for debit. Editing credit → debit asks for confirmation (conversion of installment purchases) before the PATCH.
 - **Tenants**: name ≤ 120, client-side search.
-- **Purchases**: filters by card/tenant (server-side params); `PurchaseForm` rules: card, tenant, description ≤ 255, amount > 0, date `YYYY-MM-DD`; installments: total integer ≥ 2, paid 0..total. Payload sends `installmentsTotal: null, installmentsPaid: 0` for one-time purchases.
+- **Purchases**: filters by card/tenant (server-side params); `PurchaseForm` rules: card, tenant, description ≤ 255, amount > 0, date `YYYY-MM-DD`; installments: total integer ≥ 2, paid 0..total; the "Parcelada?" switch is hidden and forced off for debit cards. Payload sends `installmentsTotal: null, installmentsPaid: 0` for one-time purchases.
 - **Statements**: list by period (+ optional card); "Limpar" resets to current month/all cards; batch generation runs sequentially, continues on failure and reports a summary; detail dialog edits dates, signed adjustment and lock, then re-reads the statement; pay dialog requires amount > 0 and a date (defaults: total, local today) and locks an open statement first (`skipToast`, so only the payment toast shows); the lock toggle shows its own "fechada/reaberta" toasts.
 - **Subscriptions**: client-side filters (search, card, status); validated form with money mask.
 - **Fixed expenses / Income sources**: tenant select, description ≤ 180, masked amount; income type default `fixed`.
@@ -174,4 +174,3 @@ Backend-owned rules: statement composition/totals, installment scheduling, repor
 - Sensitive data: never log API responses or tokens; don't persist financial data in localStorage. JWT in localStorage is a known XSS trade-off (no CSP yet — Vuetify inline styles make a strict CSP non-trivial).
 - `VITE_*` variables are build-time: Docker takes `VITE_API_URL` as a build arg; `.dockerignore` keeps `.env` out of the image. Production image is nginx (`nginx.conf`: SPA fallback, asset caching, security headers).
 - Backend CORS allows `FRONTEND_ORIGIN` (default `http://localhost:5173`) — keep the dev/Docker port 5173 or update the backend.
-- Known backend issues (not frontend bugs): deleting a card with purchases returns 500 (FK violation) instead of a 4xx.
