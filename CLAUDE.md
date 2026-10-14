@@ -108,7 +108,7 @@ Single client: **`src/plugins/http.ts`** (default export). Never create another 
 | Credit cards | CRUD `/credit-cards`; delete **cascades statements/subscriptions** and fails (500, FK) if purchases exist |
 | Tenants | CRUD `/tenants`; delete → 403 "Tenant has purchases" when it has purchases |
 | Purchases | CRUD `/purchases`; list filters `creditCardId`, `tenantId` (also `dateStart`, `dateEnd`, `isInstallment`, unused); `installmentsTotal/Paid` validated only when `isInstallment` |
-| Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items`; `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`). Inactive cards' statements are hidden |
+| Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items`; `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`) — **only for locked statements** (400 otherwise). Inactive cards' statements are hidden |
 | Subscriptions / Fixed expenses / Income sources | CRUD; `description` ≤ 180; `tenantId` nullable in entities (SET NULL on tenant delete); income `incomeType: "fixed" \| "one_time"` |
 | Reports | `GET /reports/by-tenant?year&month` (also returns purchases/subscriptions/fixed/income/accumulated totals per tenant); `GET /reports/installments-total` (not used by the UI); `GET /reports/tenants/:id/monthly-pdf` (blob) |
 
@@ -127,7 +127,7 @@ Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — b
 - **Credit cards**: nickname ≤ 80, brand ≤ 50, `last4` exactly 4 digits, limit money ≥ 0 (required in the UI).
 - **Tenants**: name ≤ 120, client-side search.
 - **Purchases**: filters by card/tenant (server-side params); `PurchaseForm` rules: card, tenant, description ≤ 255, amount > 0, date `YYYY-MM-DD`; installments: total integer ≥ 2, paid 0..total. Payload sends `installmentsTotal: null, installmentsPaid: 0` for one-time purchases.
-- **Statements**: list by period (+ optional card); "Limpar" resets to current month/all cards; batch generation runs sequentially, continues on failure and reports a summary; detail dialog edits dates, signed adjustment and lock, then re-reads the statement; pay dialog requires amount > 0 and a date (defaults: total, local today).
+- **Statements**: list by period (+ optional card); "Limpar" resets to current month/all cards; batch generation runs sequentially, continues on failure and reports a summary; detail dialog edits dates, signed adjustment and lock, then re-reads the statement; pay dialog requires amount > 0 and a date (defaults: total, local today) and locks an open statement first (`skipToast`, so only the payment toast shows); the lock toggle shows its own "fechada/reaberta" toasts.
 - **Subscriptions**: client-side filters (search, card, status); validated form with money mask.
 - **Fixed expenses / Income sources**: tenant select, description ≤ 180, masked amount; income type default `fixed`.
 - **Reports**: by-tenant totals (zero rows hidden, numeric sort), "Total filtrado" = client sum of visible rows; PDF export = tenants × periods (periods from one `GET /statements`), sequential downloads, failures summarized.

@@ -231,6 +231,15 @@
         <v-card-title>Pagar fatura {{ payTitle }}</v-card-title>
         <v-card-text>
           <v-form @submit.prevent="confirmPay">
+            <v-alert
+              v-if="payDlg.statement && !payDlg.statement.locked"
+              type="info"
+              variant="tonal"
+              density="compact"
+              class="mb-4"
+            >
+              A fatura está aberta e será fechada antes do pagamento.
+            </v-alert>
             <v-text-field
               v-model="payForm.amount"
               label="Valor pago (BRL)"
@@ -535,11 +544,29 @@ async function saveDetail() {
 }
 
 async function toggleLock(st: Statement) {
-  const { data: updated } = await http.patch<Statement>(`/statements/${st.id}`, {
-    locked: !st.locked,
-  });
-  const idx = items.value.findIndex((x) => x.id === st.id);
-  if (idx >= 0) items.value[idx] = { ...items.value[idx], ...updated };
+  const locking = !st.locked;
+  try {
+    // Own toast: the generic "edição de Fatura" doesn't say whether it was closed or reopened.
+    const { data: updated } = await http.patch<Statement>(
+      `/statements/${st.id}`,
+      { locked: locking },
+      { skipToast: true }
+    );
+    const idx = items.value.findIndex((x) => x.id === st.id);
+    if (idx >= 0) items.value[idx] = { ...items.value[idx], ...updated };
+    toast.show({
+      message: locking ? "Fatura fechada com sucesso." : "Fatura reaberta com sucesso.",
+    });
+  } catch (e) {
+    toast.show({
+      color: "error",
+      message: withDetail(
+        locking ? "Não foi possível fechar a fatura." : "Não foi possível reabrir a fatura.",
+        e
+      ),
+    });
+    throw e;
+  }
 }
 
 // ---- Payment ----
@@ -584,6 +611,18 @@ async function confirmPay() {
 
   payDlg.saving = true;
   try {
+    // The API only accepts payment of a closed (locked) statement.
+    if (!st.locked) {
+      try {
+        await http.patch(`/statements/${st.id}`, { locked: true }, { skipToast: true });
+      } catch (e) {
+        toast.show({
+          color: "error",
+          message: withDetail("Não foi possível fechar a fatura para o pagamento.", e),
+        });
+        throw e;
+      }
+    }
     await http.post(`/statements/${st.id}/pay`, {
       amount: toApiMoney(payForm.amount),
       paidAt: payForm.paidAt,
