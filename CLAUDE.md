@@ -31,7 +31,8 @@ src/
     FilterBar.vue         # year + month (ReportsPage)
     PeriodFilterBar.vue   # card + year + month + find/generate/clear (StatementsPage)
     PurchaseForm.vue      # VeeValidate purchase form (PurchasesPage)
-    StatCard.vue, ThemeSwitcher.vue
+    SummaryStrip.vue      # headline numbers in one bordered strip (Dashboard, Reports); items typed as SummaryItem (utils/dashboard.ts), optional positive/negative tone
+    ThemeSwitcher.vue
   composables/
     useCurrency.ts        # BRL parse/format/mask + toApiMoney (payload format)
     useFormErrors.ts      # Yup schema -> reactive per-field errors for :error-messages
@@ -126,7 +127,7 @@ Single client: **`src/plugins/http.ts`** (default export). Never create another 
 | Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items` (each with `categoryId`, kept in sync with the purchase/subscription); `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`) — **only for locked statements** (400 otherwise). Inactive cards' statements are hidden |
 | Subscriptions / Fixed expenses / Income sources | CRUD; subscriptions take an optional `categoryId`; `description` ≤ 180; `tenantId` nullable in entities (SET NULL on tenant delete); income `incomeType: "fixed" \| "one_time"` + `startDate`/`endDate` (nullable; one-time `startDate` = receipt day, defaulted to today by the backend; fixed = validity window, end ≥ start) |
 | Investments | CRUD `/investments` (`name` ≤ 120, `type` ∈ 7 types, `institution` nullable; list paged with `search`/`type`, rows carry computed `currentValue`, `investedTotal`, `lastMovementDate`); movements `GET/POST /investments/:id/movements` (`kind` contribution\|withdrawal\|balance, `amount`, `date`; withdrawal above the value on that date → 400), `DELETE /investments/:id/movements/:movementId` |
-| Reports | `GET /reports/investments?year&month` → `InvestmentsSummary` (dashboard); `GET /reports/by-category?year&month` → `CategoryTotal[]` (statement items + Pix/cash purchases of the month per category, largest first, `categoryId: null` = uncategorized; used by the dashboard); `GET /reports/by-tenant?year&month` (also returns purchases/subscriptions/fixed/income/accumulated totals per tenant); `GET /reports/installments-total` (not used by the UI); `GET /reports/tenants/:id/monthly-pdf` (blob) |
+| Reports | `GET /reports/by-category?year&month&tenantId?`; `GET /reports/by-tenant` rows: `purchasesTotal`, `subscriptionsTotal`, `reportExpensesTotal`, `fixedExpensesTotal`, `incomeSourcesTotal`, `accumulatedAmount` (= income − fixed − purchases − subscriptions); `GET /reports/investments?year&month` → `InvestmentsSummary` (dashboard); `GET /reports/by-category?year&month` → `CategoryTotal[]` (statement items + Pix/cash purchases of the month per category, largest first, `categoryId: null` = uncategorized; used by the dashboard); `GET /reports/by-tenant?year&month` (also returns purchases/subscriptions/fixed/income/accumulated totals per tenant); `GET /reports/installments-total` (not used by the UI); `GET /reports/tenants/:id/monthly-pdf` (blob) |
 
 **Paging**: list screens page on the server. `usePagedList(url, () => filters)` sends `page`, `pageSize`, `sortBy` (the header `key`, which must be in the endpoint's sort whitelist), `sortDir` and the non-empty filters; the endpoint answers `Page<T>` (`{ items, total, page, pageSize }`). Changing a filter goes back to page 1; an emptied last page steps back; only the latest response is applied. Search fields go through `useDebounced` (300 ms). Without `page` the same endpoints return full arrays — use that for selects/lookups (cards, tenants, categories) and aggregations; for counts request `page=1&pageSize=1` and read `total`. Filters, search and sort must be server-side (a client filter would only see the current page). Reports by tenant and statement items stay client-side (small, already aggregated/loaded).
 
@@ -153,7 +154,7 @@ Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — b
 - **Subscriptions**: server-side filters (search, card, status, category); validated form with money mask.
 - **Investments** (`/investments`, nav "Lançamentos"): paged list (search, type filter) with type dot, total invested and current value; dialog per investment for movements (Aporte / Resgate / Atualizar saldo — balance = value reported on a date, may be 0; others > 0; date ≤ today), list reloads after each change. Empty state uses `empty-investiments`.
 - **Fixed expenses / Income sources**: tenant select, description ≤ 180, masked amount; income type default `fixed`. Income dates: one-time → "Data de recebimento" (`startDate`, required, defaults to today); fixed → optional "Início"/"Fim" (`startDate`/`endDate`, end ≥ start, empty = open-ended; `endDate` is sent as `null` for one-time). The list's "Data" column shows the receipt day or the validity window ("Sempre" when open).
-- **Reports**: by-tenant totals (zero rows hidden, numeric sort), "Total filtrado" = client sum of visible rows; PDF export = tenants × periods (periods from one `GET /statements`), sequential downloads, failures summarized.
+- **Reports**: period from `FilterBar` (data shown for the applied period) plus a tenant select in its slot (applies at once; "Limpar" resets it): the strip, table and expense chart use that tenant's row (the chart becomes "Composição das despesas"), categories are refetched with `tenantId` (latest request wins), and "Exportar PDFs" preselects it. `SummaryStrip` (total expenses = purchases + subscriptions + fixed, income, signed balance, tenants with movement), "Despesas por responsável" and "Gastos por categoria" (`BarList`, `topCategories` of `GET /reports/by-category`), and the per-tenant table (purchases, subscriptions, fixed, total, income, balance in green/red; numeric columns, totals row; tenants with no movement hidden) with a PDF download per row for the month on screen. "Exportar PDFs" = tenants × months (months from one `GET /statements`, the month on screen preselected), sequential downloads, failures summarized.
 
 Backend-owned rules: statement composition/totals, installment scheduling, report aggregation, PDF content, ownership checks, cascades.
 
@@ -191,7 +192,7 @@ Backend-owned rules: statement composition/totals, installment scheduling, repor
 
 - Read the target page and its siblings first; copy the closest existing pattern.
 - Stay in scope; mention (don't do) unrelated refactors.
-- Reuse `http`, `useCurrency`, `useFormErrors`, `moneyField`, `utils/date`, `useConfirmStore`, `StatCard`, filter bars. No new dependencies when existing tools suffice.
+- Reuse `http`, `useCurrency`, `useFormErrors`, `moneyField`, `utils/date`, `useConfirmStore`, `SummaryStrip`, `BarList`, filter bars. No new dependencies when existing tools suffice.
 - Respect API contracts (string money, explicit payloads, `forbidNonWhitelisted`).
 - Async actions: loading flag + `finally`; re-fetch after mutations.
 - Bug fixes: fix minimally, add a spec reproducing the bug when practical, check sibling pages for the same pattern.
