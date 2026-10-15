@@ -16,6 +16,32 @@
         :error-messages="errors.name"
       />
       <v-text-field
+        :model-value="form.cpf"
+        label="CPF"
+        inputmode="numeric"
+        placeholder="000.000.000-00"
+        prepend-inner-icon="mdi-card-account-details-outline"
+        :error-messages="errors.cpf"
+        @update:model-value="(v) => (form.cpf = formatCpf(v))"
+      />
+      <v-text-field
+        v-model="form.birthDate"
+        label="Data de nascimento"
+        type="date"
+        :max="todayLocalISO()"
+        :error-messages="errors.birthDate"
+      />
+      <v-text-field
+        :model-value="form.phone"
+        label="Celular"
+        type="tel"
+        autocomplete="tel-national"
+        placeholder="(00) 00000-0000"
+        prepend-inner-icon="mdi-cellphone"
+        :error-messages="errors.phone"
+        @update:model-value="(v) => (form.phone = formatPhone(v))"
+      />
+      <v-text-field
         v-model="form.email"
         label="E-mail"
         type="email"
@@ -64,26 +90,46 @@ const banners = [
 ];
 const banner = banners[Math.floor(Math.random() * banners.length)];
 import { reactive, ref } from "vue";
+import { useRouter } from "vue-router";
+import { useToastStore } from "../stores/toast";
+import { authErrorMessage } from "../utils/api-error";
+import { formatCpf, formatPhone, isValidCpf, onlyDigits } from "../utils/br";
+import { todayLocalISO } from "../utils/date";
+import { isBlockedEmailDomain } from "../utils/email";
 import * as yup from "yup";
 import { useAuthStore } from "../stores/auth";
 import { useFormErrors } from "../composables/useFormErrors";
 
 const auth = useAuthStore();
-const form = reactive({ name: "", email: "", password: "" });
+const router = useRouter();
+const form = reactive({ name: "", cpf: "", birthDate: "", phone: "", email: "", password: "" });
 const loading = ref(false);
 
-// Mirrors the backend RegisterDto (IsEmail, MinLength(8)); name fits the 120-char column.
+// Mirrors the backend RegisterDto (IsEmail, MinLength(8), valid CPF, 10–11 digit phone).
 const schema = yup.object({
   name: yup
     .string()
     .trim()
     .required("Nome é obrigatório")
     .max(120, "Máximo de 120 caracteres"),
+  cpf: yup
+    .string()
+    .required("CPF é obrigatório")
+    .test("cpf", "CPF inválido", (v) => isValidCpf(v ?? "")),
+  birthDate: yup
+    .string()
+    .required("Data de nascimento é obrigatória")
+    .test("past", "Data de nascimento inválida", (v) => !!v && v >= "1900-01-01" && v <= todayLocalISO()),
+  phone: yup
+    .string()
+    .required("Celular é obrigatório")
+    .test("phone", "Informe DDD + número", (v) => [10, 11].includes(onlyDigits(v).length)),
   email: yup
     .string()
     .trim()
     .required("E-mail é obrigatório")
-    .email("Informe um e-mail válido"),
+    .email("Informe um e-mail válido")
+    .test("real-domain", "E-mail inválido", (v) => !isBlockedEmailDomain(v ?? "")),
   password: yup
     .string()
     .required("Senha é obrigatória")
@@ -92,6 +138,9 @@ const schema = yup.object({
 
 const { errors, validateAll } = useFormErrors(schema, [
   "name",
+  "cpf",
+  "birthDate",
+  "phone",
   "email",
   "password",
 ] as const);
@@ -101,9 +150,20 @@ async function onSubmit() {
   loading.value = true;
   try {
     const email = form.email.trim();
-    await auth.register(form.name.trim(), email, form.password);
-    await auth.login(email, form.password);
-    location.assign("/dashboard");
+    await auth.register({
+      name: form.name.trim(),
+      email,
+      password: form.password,
+      cpf: onlyDigits(form.cpf),
+      phone: onlyDigits(form.phone),
+      birthDate: form.birthDate,
+    });
+    router.push({ path: "/verify-email", query: { email } });
+  } catch (e) {
+    useToastStore().show({
+      color: "error",
+      message: authErrorMessage(e, "Não foi possível concluir o cadastro."),
+    });
   } finally {
     loading.value = false;
   }

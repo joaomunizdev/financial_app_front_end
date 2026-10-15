@@ -19,6 +19,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import("../pages/RegisterPage.vue"),
     meta: { layout: "auth" },
   },
+  {
+    path: "/verify-email",
+    component: () => import("../pages/VerifyEmailPage.vue"),
+    meta: { layout: "auth" },
+  },
   { path: "/", redirect: "/dashboard" },
   {
     path: "/dashboard",
