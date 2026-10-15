@@ -22,6 +22,7 @@ src/
     PageHeader.vue        # page title + description + actions slot — every page starts with it
     BarList.vue           # ranked horizontal bars (single accent color, value + share labels)
     MonthlySpendingChart.vue # SVG column chart, last month emphasized, hover tooltip
+    EmptyState.vue        # illustrated empty/error state (image, title, one line, single action)
     ConfirmDialog.vue     # global confirmation dialog driven by stores/confirm
     FilterBar.vue         # year + month (ReportsPage)
     PeriodFilterBar.vue   # card + year + month + find/generate/clear (StatementsPage)
@@ -36,7 +37,7 @@ src/
   styles/app.css          # global look: Inter, page/section title classes, 12px cards, table header, buttons
   router/index.ts         # routes, RouteMeta typing, auth guard, catch-all
   schemas/                # purchaseSchema.ts (+ PurchaseFormValues), money.ts (moneyField)
-  stores/                 # auth.ts, toast.ts (queue), confirm.ts (promise-based)
+  stores/                 # auth.ts, toast.ts (queue), confirm.ts (promise-based), connection.ts (offline flag)
   types/domain.ts         # API entity types (CreditCard, Purchase, Statement, ...)
   utils/                  # date.ts, jwt.ts, api-error.ts, dashboard.ts (dashboard aggregations)
   test/                   # setup.ts (happy-dom shims), helpers.ts (fakeJwt)
@@ -123,7 +124,7 @@ Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — b
 
 ## 7. Routing and Authentication
 
-- `RouteMeta` is typed (`auth?`, `layout?: "auth"`). Protected routes: `meta: { auth: true }`; `/login`, `/register`: `meta: { layout: "auth" }`. Unknown paths redirect to `/dashboard` (then the guard sends unauthenticated users to `/login`).
+- `RouteMeta` is typed (`auth?`, `layout?: "auth"`). Protected routes: `meta: { auth: true }`; `/login`, `/register`: `meta: { layout: "auth" }`. Unknown paths render `NotFoundPage` (protected, so unauthenticated users go to `/login`).
 - Guard: `auth.syncSession()`, then `auth && !isAuthenticated → /login`; auth-layout routes while authenticated → `/dashboard`.
 - Login/register/logout navigate with `location.assign` (full reload). Keep it unless deliberately reworking the auth flow.
 - Adding a page = route (with `meta`) + AppShell nav item + AppShell title map + page.
@@ -150,6 +151,8 @@ Backend-owned rules: statement composition/totals, installment scheduling, repor
 - Responsiveness: drawer rails on `mdAndDown`; use `v-row/v-col` and `flex-wrap` sheets.
 - Empty states: `v-alert type="info" variant="tonal"` or the table `#no-data` slot.
 - Icon-only buttons need `aria-label`.
+- Empty states: every list uses `<EmptyState>` in the table `#no-data` slot with an illustration from `src/assets/empty/` (400px-tall transparent WebP) and the page's create action. When filters/search caused the empty result, show `empty-search` + "Limpar filtros" instead of the create invitation. Unknown routes render `NotFoundPage`; when a request gets no response the http interceptor sets `connection.offline` and AppShell replaces the page with the offline state ("Tentar de novo" reloads) instead of a toast.
+- Dashboard shows a "Primeiros passos" checklist (`onboardingSteps` in `utils/dashboard.ts`: responsável → cartão → compra → fatura) until all steps are done or it is dismissed (localStorage `financial-app-onboarding-dismissed`).
 - Login/Register use `AuthSplitLayout`: brand illustration + message on the left (hidden below 860px), form on the right. Illustrations live in `src/assets/auth/` as ~1070px-wide WebP (quality 90) (login and register each draw one of two per visit).
 
 ## 10. Testing and Quality
