@@ -70,6 +70,11 @@
               </template>
               <v-list density="compact" min-width="200">
                 <v-list-item
+                  prepend-icon="mdi-account-circle-outline"
+                  title="Meu perfil"
+                  to="/profile"
+                />
+                <v-list-item
                   prepend-icon="mdi-logout"
                   title="Sair"
                   @click="logout"
@@ -251,7 +256,16 @@ function toggleRail() {
 
 const isAuthPage = computed(() => route.meta?.layout === "auth");
 
+// Pages reachable outside the sidebar (account menu).
+const extraPages: Record<string, { group: string; item: NavItem }> = {
+  "/profile": {
+    group: "Conta",
+    item: { to: "/profile", title: "Meu perfil", icon: "mdi-account-circle-outline" },
+  },
+};
+
 const currentEntry = computed(() => {
+  if (extraPages[route.path]) return extraPages[route.path];
   for (const group of navGroups) {
     const item = group.items.find((i) => i.to === route.path);
     if (item) return { group: group.label, item };
