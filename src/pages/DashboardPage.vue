@@ -95,13 +95,19 @@
 
     <div class="analytics-grid">
         <v-card class="pa-5 h-100">
-          <div class="mb-4">
-            <h2 class="section-title">Gastos por cartão</h2>
-            <p class="text-caption text-medium-emphasis">
-              Total das faturas em {{ selected.label.toLowerCase() }}
-            </p>
+          <div class="d-flex align-start justify-space-between ga-4 mb-4">
+            <div>
+              <h2 class="section-title">Onde você mais gastou</h2>
+              <p class="text-caption text-medium-emphasis">
+                Gastos por categoria em {{ selected.label.toLowerCase() }}
+              </p>
+            </div>
+            <v-btn id="link-all-categories" variant="text" size="small" to="/categories">
+              Ver todas as categorias
+            </v-btn>
           </div>
-          <BarList :items="byCard" list-label="Gastos por cartão no período">
+          <v-progress-linear v-if="categoriesLoading" indeterminate color="primary" />
+          <BarList v-else :items="byCategory" :list-label="`Gastos por categoria em ${selected.label.toLowerCase()}`">
             <template #empty>
               Nenhuma fatura gerada para este período.
               <router-link id="link-dashboard-statements" to="/statements" class="text-primary">
@@ -189,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import http from "../plugins/http";
 import PageHeader from "../components/PageHeader.vue";
 import BarList from "../components/BarList.vue";
@@ -202,9 +208,15 @@ import {
   onboardingSteps,
   percentChange,
   periodOptions,
-  totalsByCard,
+  topCategories,
 } from "../utils/dashboard";
-import type { CreditCard, Purchase, Statement, Tenant } from "../types/domain";
+import type {
+  CategoryTotal,
+  CreditCard,
+  Purchase,
+  Statement,
+  Tenant,
+} from "../types/domain";
 
 const { toCurrencyBRL } = useCurrency();
 
@@ -259,9 +271,23 @@ const selected = computed(
 const months = computed(() =>
   monthlyTotals(statements.value, selected.value.year, selected.value.month)
 );
-const byCard = computed(() =>
-  totalsByCard(statements.value, cards.value, selected.value.year, selected.value.month)
-);
+const categoryTotals = ref<CategoryTotal[]>([]);
+const categoriesLoading = ref(false);
+const byCategory = computed(() => topCategories(categoryTotals.value));
+
+async function fetchCategoryTotals() {
+  categoriesLoading.value = true;
+  try {
+    const { year, month } = selected.value;
+    const { data } = await http.get<CategoryTotal[]>("/reports/by-category", {
+      params: { year, month },
+    });
+    categoryTotals.value = data || [];
+  } finally {
+    categoriesLoading.value = false;
+  }
+}
+watch(period, fetchCategoryTotals);
 
 const totalLimit = computed(() =>
   cards.value
@@ -307,7 +333,10 @@ async function fetchDashboard() {
   }
 }
 
-onMounted(fetchDashboard);
+onMounted(() => {
+  fetchDashboard();
+  fetchCategoryTotals();
+});
 </script>
 
 <style scoped>
@@ -410,7 +439,7 @@ onMounted(fetchDashboard);
 
 .analytics-grid {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 24px;
 }
 @media (max-width: 1280px) {

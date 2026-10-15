@@ -1,4 +1,6 @@
-import type { CreditCard, Statement } from "../types/domain";
+import type { CategoryTotal, Statement } from "../types/domain";
+
+const OTHERS = "Outros";
 
 export type MonthTotal = {
   year: number;
@@ -46,26 +48,24 @@ export function monthlyTotals(
   });
 }
 
-/** Statement totals of one month per card, largest first, without zero rows. */
-export function totalsByCard(
-  statements: Statement[],
-  cards: CreditCard[],
-  year: number,
-  month: number
-): LabeledTotal[] {
-  const sums = new Map<string, number>();
-  for (const st of statements) {
-    if (st.year !== year || st.month !== month) continue;
-    sums.set(st.creditCardId, (sums.get(st.creditCardId) ?? 0) + Number(st.totalAmount || 0));
-  }
-  return [...sums.entries()]
-    .filter(([, total]) => total !== 0)
-    .map(([id, total]) => ({
-      id,
-      label: cards.find((c) => c.id === id)?.nickname ?? "Cartão",
-      total: Math.round(total * 100) / 100,
-    }))
+/**
+ * Category totals for the "Onde você mais gastou" bars: the `limit` largest
+ * categories, then one "Outros" row with the rest (the "Outros" category and
+ * uncategorized items included).
+ */
+export function topCategories(rows: CategoryTotal[], limit = 6): LabeledTotal[] {
+  const named = rows
+    .filter((r) => r.categoryId && r.name !== OTHERS)
+    .map((r) => ({ id: r.categoryId as string, label: r.name as string, total: Number(r.totalAmount) }))
     .sort((a, b) => b.total - a.total);
+  const restCents = [
+    ...named.slice(limit),
+    ...rows
+      .filter((r) => !r.categoryId || r.name === OTHERS)
+      .map((r) => ({ total: Number(r.totalAmount) })),
+  ].reduce((acc, r) => acc + Math.round(r.total * 100), 0);
+  const top = named.slice(0, limit);
+  return restCents > 0 ? [...top, { id: "others", label: OTHERS, total: restCents / 100 }] : top;
 }
 
 /** Percent change from previous to current, or null when there is no base. */

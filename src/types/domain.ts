@@ -31,6 +31,15 @@ export interface Category {
   isDefault: boolean;
 }
 
+/** `GET /reports/by-category` row: statement items of a month per category. */
+export interface CategoryTotal {
+  /** null = uncategorized items. */
+  categoryId: string | null;
+  name: string | null;
+  icon: string | null;
+  totalAmount: Money;
+}
+
 export interface Purchase {
   id: string;
   creditCardId: string;
