@@ -222,6 +222,9 @@
             <template #item.amount="{ item }">{{
               toCurrencyBRL(item.amount)
             }}</template>
+            <template #item.category="{ item }">
+              <CategoryLabel :category="categoriesById.get(item.categoryId ?? '')" />
+            </template>
           </v-data-table>
 
           <div class="d-flex justify-end mt-4">
@@ -300,7 +303,9 @@ import {
   toDateInput,
   todayLocalISO,
 } from "../utils/date";
-import type { CreditCard, Statement } from "../types/domain";
+import { categoryMap } from "../utils/categories";
+import CategoryLabel from "../components/CategoryLabel.vue";
+import type { Category, CreditCard, Statement, StatementItem } from "../types/domain";
 
 const {
   toCurrencyBRL,
@@ -312,6 +317,8 @@ const {
 const toast = useToastStore();
 
 const creditCards = ref<CreditCard[]>([]);
+const categories = ref<Category[]>([]);
+const categoriesById = computed(() => categoryMap(categories.value));
 const creditCardId = ref<string>("");
 const items = ref<Statement[]>([]);
 const loading = ref(false);
@@ -480,6 +487,11 @@ async function generate() {
 
 const itemHeaders = [
   { title: "Descrição", key: "label" },
+  {
+    title: "Categoria",
+    key: "category",
+    value: (i: StatementItem) => categoriesById.value.get(i.categoryId ?? "")?.name ?? "",
+  },
   { title: "Valor", key: "amount", align: "end" as const },
 ];
 
@@ -649,7 +661,12 @@ async function confirmPay() {
 }
 
 onMounted(async () => {
-  creditCards.value = (await http.get<CreditCard[]>("/credit-cards")).data || [];
+  const [cards, cats] = await Promise.all([
+    http.get<CreditCard[]>("/credit-cards"),
+    http.get<Category[]>("/categories"),
+  ]);
+  creditCards.value = cards.data || [];
+  categories.value = cats.data || [];
   await load();
 });
 </script>

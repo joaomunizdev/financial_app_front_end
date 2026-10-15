@@ -63,6 +63,7 @@ export const vuetify = createVuetify({
       color: "primary",
     },
     VSelect: { variant: "outlined", density: "compact", color: "primary" },
+    VAutocomplete: { variant: "outlined", density: "compact", color: "primary" },
     VBtn: { rounded: "lg", color: "primary", variant: "flat" },
     VCard: { variant: "flat", border: true },
     VDataTable: {

@@ -33,10 +33,16 @@
         prepend-inner-icon="mdi-account-outline"
         style="min-width: 240px"
       />
+      <CategorySelect
+        v-model="filters.categoryId"
+        :categories="categories"
+        hide-details
+        style="min-width: 240px"
+      />
     </v-sheet>
     <v-card>
       <v-data-table
-        :items="items"
+        :items="visibleItems"
         :headers="headers"
         :loading="loading"
         class="pa-2"
@@ -56,6 +62,10 @@
         <template #item.tenant="{ item }">{{
           tenantName(item.tenantId)
         }}</template>
+
+        <template #item.category="{ item }">
+          <CategoryLabel :category="categoriesById.get(item.categoryId ?? '')" />
+        </template>
 
         <template #item.isInstallment="{ item }">
           <v-chip
@@ -90,7 +100,7 @@
             v-if="hasFilters"
             :image="emptySearch"
             title="Nada encontrado com esses filtros"
-            description="Tente outro cartão ou responsável."
+            description="Tente outro cartão, responsável ou categoria."
             action-text="Limpar filtros"
             action-icon="mdi-filter-remove-outline"
             @action="clearFilters"
@@ -117,6 +127,7 @@
             :model-value="form"
             :credit-cards="creditCards"
             :tenants="tenants"
+            :categories="categories"
             :loading="saving"
             @submit="save"
           />
@@ -134,11 +145,14 @@ import emptySearch from "../assets/empty/empty-search.webp";
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import PurchaseForm from "../components/PurchaseForm.vue";
+import CategoryLabel from "../components/CategoryLabel.vue";
+import CategorySelect from "../components/CategorySelect.vue";
+import { categoryMap } from "../utils/categories";
 import type { PurchaseFormValues } from "../schemas/purchaseSchema";
 import { useCurrency } from "../composables/useCurrency";
 import { useConfirmStore } from "../stores/confirm";
 import { formatDateBR } from "../utils/date";
-import type { CreditCard, Purchase, Tenant } from "../types/domain";
+import type { Category, CreditCard, Purchase, Tenant } from "../types/domain";
 
 const { toCurrencyBRL, toApiMoney } = useCurrency();
 const confirm = useConfirmStore();
@@ -149,17 +163,25 @@ const open = ref(false);
 const items = ref<Purchase[]>([]);
 const creditCards = ref<CreditCard[]>([]);
 const tenants = ref<Tenant[]>([]);
+const categories = ref<Category[]>([]);
+const categoriesById = computed(() => categoryMap(categories.value));
 const form = ref<Purchase | null>(null);
 const filters = reactive<{
   creditCardId: string | null;
   tenantId: string | null;
-}>({ creditCardId: null, tenantId: null });
+  categoryId: string | null;
+}>({ creditCardId: null, tenantId: null, categoryId: null });
 
 const headers = [
   { title: "Descrição", key: "description" },
   { title: "Data", key: "purchaseDate" },
   { title: "Cartão", key: "card" },
   { title: "Responsável", key: "tenant" },
+  {
+    title: "Categoria",
+    key: "category",
+    value: (p: Purchase) => categoriesById.value.get(p.categoryId ?? "")?.name ?? "",
+  },
   { title: "Valor", key: "totalAmount", align: "end" as const },
   { title: "Parcelada", key: "isInstallment", align: "center" as const },
   { title: "Parcelas", key: "installments", align: "center" as const },
@@ -174,11 +196,21 @@ function tenantName(tenantId: string) {
   return tenants.value.find((t) => t.id === tenantId)?.name ?? "—";
 }
 
-const hasFilters = computed(() => !!(filters.creditCardId || filters.tenantId));
+const hasFilters = computed(
+  () => !!(filters.creditCardId || filters.tenantId || filters.categoryId)
+);
+
+// Card and tenant filter on the server; the category filters the loaded list.
+const visibleItems = computed(() =>
+  filters.categoryId
+    ? items.value.filter((p) => p.categoryId === filters.categoryId)
+    : items.value
+);
 
 function clearFilters() {
   filters.creditCardId = null;
   filters.tenantId = null;
+  filters.categoryId = null;
 }
 
 function openNew() {
@@ -194,12 +226,14 @@ function edit(it: Purchase) {
 async function fetchAll() {
   loading.value = true;
   try {
-    const [c, t] = await Promise.all([
+    const [c, t, cat] = await Promise.all([
       http.get<CreditCard[]>("/credit-cards"),
       http.get<Tenant[]>("/tenants"),
+      http.get<Category[]>("/categories"),
     ]);
     creditCards.value = c.data || [];
     tenants.value = t.data || [];
+    categories.value = cat.data || [];
     await loadPurchases();
   } finally {
     loading.value = false;
@@ -228,6 +262,7 @@ async function save(values: PurchaseFormValues) {
     const body = {
       creditCardId: values.creditCardId,
       tenantId: values.tenantId,
+      categoryId: values.categoryId || null,
       description: values.description.trim(),
       purchaseDate: values.purchaseDate,
       totalAmount: toApiMoney(values.totalAmount),

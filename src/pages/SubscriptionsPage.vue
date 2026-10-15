@@ -41,6 +41,12 @@
         prepend-inner-icon="mdi-toggle-switch-outline"
         style="min-width: 180px"
       />
+      <CategorySelect
+        v-model="filterCategoryId"
+        :categories="categories"
+        hide-details
+        style="min-width: 220px"
+      />
       <v-spacer />
       <v-btn
         variant="text"
@@ -77,6 +83,10 @@
 
         <template #item.tenant="{ item }">
           {{ tenantName(item.tenantId) }}
+        </template>
+
+        <template #item.category="{ item }">
+          <CategoryLabel :category="categoriesById.get(item.categoryId ?? '')" />
         </template>
 
         <template #item.actions="{ item }">
@@ -146,6 +156,7 @@
               maxlength="180"
               :error-messages="errors.description"
             />
+            <CategorySelect v-model="form.categoryId" :categories="categories" />
             <v-text-field
               v-model="form.amount"
               label="Valor (BRL)"
@@ -170,6 +181,9 @@
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
+import CategoryLabel from "../components/CategoryLabel.vue";
+import CategorySelect from "../components/CategorySelect.vue";
+import { categoryMap } from "../utils/categories";
 import emptySubscriptions from "../assets/empty/empty-subscriptions.webp";
 import emptySearch from "../assets/empty/empty-search.webp";
 import { ref, reactive, computed, onMounted, watch } from "vue";
@@ -180,6 +194,7 @@ import { useFormErrors } from "../composables/useFormErrors";
 import { moneyField } from "../schemas/money";
 import { useConfirmStore } from "../stores/confirm";
 import type {
+  Category,
   CreditCard,
   SelectOption,
   Subscription,
@@ -196,7 +211,10 @@ const open = ref(false);
 const items = ref<Subscription[]>([]);
 const cards = ref<CreditCard[]>([]);
 const tenants = ref<Tenant[]>([]);
+const categories = ref<Category[]>([]);
+const categoriesById = computed(() => categoryMap(categories.value));
 const search = ref("");
+const filterCategoryId = ref<string | null>(null);
 const filterCardId = ref<string | null>(null);
 const filterActive = ref<boolean | null>(null);
 const activeOptions: SelectOption<boolean | null>[] = [
@@ -210,6 +228,11 @@ const headers = [
   { title: "Valor", key: "amount", align: "end" as const },
   { title: "Cartão", key: "card" },
   { title: "Responsável", key: "tenant" },
+  {
+    title: "Categoria",
+    key: "category",
+    value: (s: Subscription) => categoriesById.value.get(s.categoryId ?? "")?.name ?? "",
+  },
   { title: "Status", key: "active", align: "center" as const },
   { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
@@ -218,6 +241,7 @@ type FormT = {
   id: string;
   creditCardId: string;
   tenantId: string;
+  categoryId: string | null;
   description: string;
   amount: string;
   active: boolean;
@@ -227,6 +251,7 @@ const form = reactive<FormT>({
   id: "",
   creditCardId: "",
   tenantId: "",
+  categoryId: null,
   description: "",
   amount: "",
   active: true,
@@ -268,17 +293,24 @@ const filteredItems = computed(() => {
     data = data.filter((i) => i.creditCardId === filterCardId.value);
   if (filterActive.value !== null)
     data = data.filter((i) => i.active === filterActive.value);
+  if (filterCategoryId.value)
+    data = data.filter((i) => i.categoryId === filterCategoryId.value);
   return data;
 });
 
 const hasFilters = computed(
-  () => !!search.value || !!filterCardId.value || filterActive.value !== null
+  () =>
+    !!search.value ||
+    !!filterCardId.value ||
+    filterActive.value !== null ||
+    !!filterCategoryId.value
 );
 
 function clearFilters() {
   search.value = "";
   filterCardId.value = null;
   filterActive.value = null;
+  filterCategoryId.value = null;
 }
 
 function openCreate() {
@@ -286,6 +318,9 @@ function openCreate() {
     id: "",
     creditCardId: cards.value[0]?.id ?? "",
     tenantId: tenants.value[0]?.id ?? "",
+    // Most recurring charges are subscriptions; the user can change it.
+    categoryId:
+      categories.value.find((c) => c.isDefault && c.name === "Assinaturas")?.id ?? null,
     description: "",
     amount: "",
     active: true,
@@ -299,6 +334,7 @@ function openEdit(it: Subscription) {
     id: it.id,
     creditCardId: it.creditCardId,
     tenantId: it.tenantId ?? "",
+    categoryId: it.categoryId ?? null,
     description: it.description ?? "",
     amount: toCurrencyBRL(it.amount ?? "0"),
     active: it.active,
@@ -314,11 +350,13 @@ watch(open, (v) => {
 async function fetchAll() {
   loading.value = true;
   try {
-    const [subs, cc, tn] = await Promise.all([
+    const [subs, cc, tn, cat] = await Promise.all([
       http.get<Subscription[]>("/subscriptions"),
       http.get<CreditCard[]>("/credit-cards"),
       http.get<Tenant[]>("/tenants"),
+      http.get<Category[]>("/categories"),
     ]);
+    categories.value = cat.data || [];
     items.value = subs.data || [];
     cards.value = cc.data || [];
     tenants.value = tn.data || [];
@@ -335,6 +373,7 @@ async function save() {
     const payload = {
       creditCardId: form.creditCardId,
       tenantId: form.tenantId,
+      categoryId: form.categoryId,
       description: form.description.trim(),
       amount: toApiMoney(form.amount),
       active: form.active,

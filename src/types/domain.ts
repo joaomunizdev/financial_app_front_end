@@ -35,6 +35,7 @@ export interface Purchase {
   id: string;
   creditCardId: string;
   tenantId: string;
+  categoryId: string | null;
   description: string;
   purchaseDate: ISODate;
   totalAmount: Money;
@@ -48,6 +49,8 @@ export interface StatementItem {
   label: string;
   amount: Money;
   installmentNumber: number | null;
+  /** Follows the purchase/subscription category, also in closed statements. */
+  categoryId: string | null;
 }
 
 export interface Statement {
@@ -69,6 +72,7 @@ export interface Subscription {
   id: string;
   creditCardId: string;
   tenantId: string | null;
+  categoryId: string | null;
   description: string;
   amount: Money;
   active: boolean;

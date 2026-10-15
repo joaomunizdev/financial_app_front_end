@@ -25,6 +25,12 @@
       prepend-inner-icon="mdi-text"
       :error-messages="errors.description"
     />
+    <CategorySelect
+      :model-value="categoryId ?? null"
+      :categories="categories"
+      :error-messages="errors.categoryId"
+      @update:model-value="(v) => (categoryId = v)"
+    />
     <v-text-field
       :model-value="maskedTotalAmount"
       @update:model-value="onAmountChange"
@@ -76,6 +82,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import CategorySelect from "./CategorySelect.vue";
 import { useForm } from "vee-validate";
 import {
   purchaseSchema,
@@ -83,12 +90,13 @@ import {
 } from "../schemas/purchaseSchema";
 import { useCurrency } from "../composables/useCurrency";
 import { toDateInput, todayLocalISO } from "../utils/date";
-import type { CreditCard, Purchase, Tenant } from "../types/domain";
+import type { Category, CreditCard, Purchase, Tenant } from "../types/domain";
 
 const props = defineProps<{
   modelValue?: Purchase | null;
   creditCards: CreditCard[];
   tenants: Tenant[];
+  categories: Category[];
   loading?: boolean;
 }>();
 const emit = defineEmits<{ (e: "submit", value: PurchaseFormValues): void }>();
@@ -101,6 +109,7 @@ const { handleSubmit, errors, defineField } = useForm<PurchaseFormValues>({
   initialValues: {
     creditCardId: initial?.creditCardId ?? "",
     tenantId: initial?.tenantId ?? "",
+    categoryId: initial?.categoryId ?? null,
     description: initial?.description ?? "",
     totalAmount: initial ? Number(initial.totalAmount) : "",
     purchaseDate: toDateInput(initial?.purchaseDate) || todayLocalISO(),
@@ -112,6 +121,7 @@ const { handleSubmit, errors, defineField } = useForm<PurchaseFormValues>({
 
 const [creditCardId] = defineField("creditCardId");
 const [tenantId] = defineField("tenantId");
+const [categoryId] = defineField("categoryId");
 const [description] = defineField("description");
 const [totalAmount] = defineField("totalAmount");
 const [purchaseDate] = defineField("purchaseDate");

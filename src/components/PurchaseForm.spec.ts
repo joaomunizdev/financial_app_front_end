@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createVuetify } from "vuetify";
 import PurchaseForm from "./PurchaseForm.vue";
-import type { CreditCard, Purchase } from "../types/domain";
+import type { Category, CreditCard, Purchase } from "../types/domain";
 import type { PurchaseFormValues } from "../schemas/purchaseSchema";
 
 const cards: CreditCard[] = [
@@ -10,11 +10,15 @@ const cards: CreditCard[] = [
   { id: "d1", nickname: "Conta", brand: "Elo", last4: "9999", limitAmount: null, cardType: "debit", active: true },
 ];
 const tenants = [{ id: "t1", name: "Ana" }];
+const categories: Category[] = [
+  { id: "cat1", name: "Mercado", icon: "mdi-cart-outline", isDefault: true },
+];
 
 const purchase: Purchase = {
   id: "p1",
   creditCardId: "c1",
   tenantId: "t1",
+  categoryId: "cat1",
   description: "Mercado",
   purchaseDate: "2025-08-01",
   totalAmount: "350.40",
@@ -25,7 +29,7 @@ const purchase: Purchase = {
 
 function mountForm(modelValue: Purchase | null) {
   return mount(PurchaseForm, {
-    props: { modelValue, creditCards: cards, tenants },
+    props: { modelValue, creditCards: cards, tenants, categories },
     global: { plugins: [createVuetify()] },
   });
 }
@@ -51,6 +55,7 @@ describe("PurchaseForm", () => {
       id: "p1",
       creditCardId: "c1",
       tenantId: "t1",
+      categoryId: "cat1",
       totalAmount: 350.4,
       purchaseDate: "2025-08-01",
       isInstallment: true,
@@ -78,6 +83,13 @@ describe("PurchaseForm", () => {
     await submit(wrapper);
     const values = wrapper.emitted("submit")![0][0] as PurchaseFormValues;
     expect(values).toMatchObject({ creditCardId: "d1", isInstallment: false });
+  });
+
+  it("allows a purchase without category", async () => {
+    const wrapper = mountForm({ ...purchase, categoryId: null });
+    await submit(wrapper);
+    const values = wrapper.emitted("submit")![0][0] as PurchaseFormValues;
+    expect(values.categoryId).toBeNull();
   });
 
   it("defaults the date of a new purchase to the local day", () => {

@@ -3,6 +3,7 @@ import * as yup from 'yup';
 export const purchaseSchema = yup.object({
   creditCardId: yup.string().required('O cartão é obrigatório.'),
   tenantId: yup.string().required('O responsável é obrigatório.'),
+  categoryId: yup.string().nullable(),
   description: yup.string().trim().required('A descrição é obrigatória.').max(255, 'Máximo de 255 caracteres.'),
 
   totalAmount: yup.number()
@@ -46,6 +47,7 @@ export type PurchaseFormValues = {
   id?: string;
   creditCardId: string;
   tenantId: string;
+  categoryId: string | null;
   description: string;
   totalAmount: number | string;
   purchaseDate: string;
