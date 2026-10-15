@@ -1,0 +1,75 @@
+/* Global look of the redesign (see .superdesign/design-system.md).
+   Vuetify tokens live in plugins/vuetify.ts; this file only adjusts what themes can't. */
+
+:root {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html,
+body,
+.v-application,
+.v-application [class*="text-"] {
+  font-family: var(--font-sans);
+}
+
+.v-application {
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Page typography */
+.v-application .page-title {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.v-application .section-title {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+/* Cards and sheets: flat, 1px border, 12px radius */
+.v-application .v-card,
+.v-application .v-sheet.v-sheet--border {
+  border-radius: 12px;
+}
+.v-application .v-overlay .v-card {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* Buttons: sentence case, medium weight */
+.v-application .v-btn {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+/* Tables: subtle header row, muted labels, tabular numbers */
+.v-application .v-data-table {
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+.v-application .v-data-table .v-data-table__th,
+.v-application .v-data-table thead th {
+  background: rgb(var(--v-theme-surface-light)) !important;
+  color: rgba(var(--v-theme-on-surface), 0.6) !important;
+  font-size: 12px;
+  font-weight: 500 !important;
+}
+.v-application .v-data-table tbody td {
+  font-size: 13px;
+}
+
+/* Focus ring on outlined fields */
+.v-application .v-field--focused .v-field__outline {
+  --v-field-border-width: 1px;
+}
+.v-application .v-field--focused {
+  box-shadow: 0 0 0 3px rgba(var(--v-theme-primary), 0.16);
+  border-radius: 8px;
+}
