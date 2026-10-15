@@ -29,6 +29,15 @@
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
+        <template #no-data>
+          <EmptyState
+            :image="emptyExpenses"
+            title="Nenhuma despesa fixa"
+            description="Aluguel, contas e outros gastos recorrentes fora do cartão."
+            action-text="Nova despesa fixa"
+            @action="openNew"
+          />
+        </template>
       </v-data-table>
     </v-card>
 
@@ -73,6 +82,8 @@
 
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyExpenses from "../assets/empty/empty-expenses.webp";
 import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";

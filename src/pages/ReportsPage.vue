@@ -71,6 +71,16 @@
         <template #item.reportExpensesTotal="{ item }">{{
           toCurrencyBRL(item.reportExpensesTotal)
         }}</template>
+        <template #no-data>
+          <EmptyState
+            :image="emptySearch"
+            title="Sem dados neste mês"
+            description="Os relatórios usam as faturas geradas do período."
+            action-text="Ir para faturas"
+            action-icon="mdi-file-document-outline"
+            action-to="/statements"
+          />
+        </template>
       </v-data-table>
     </v-card>
     <v-dialog v-model="exportDlg.open" max-width="560">
@@ -134,6 +144,8 @@
 
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptySearch from "../assets/empty/empty-search.webp";
 import { computed, onMounted, reactive, ref } from "vue";
 import FilterBar from "../components/FilterBar.vue";
 import StatCard from "../components/StatCard.vue";

@@ -97,6 +97,16 @@
             ><v-icon>mdi-cash-check</v-icon></v-btn
           >
         </template>
+        <template #no-data>
+          <EmptyState
+            :image="emptyStatements"
+            title="Nenhuma fatura neste período"
+            description="Gere a fatura do mês para ver o total e os itens de cada cartão."
+            action-text="Gerar fatura"
+            action-icon="mdi-file-plus-outline"
+            @action="openGenerateDialog"
+          />
+        </template>
       </v-data-table>
     </v-card>
 
@@ -268,6 +278,8 @@
 
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyStatements from "../assets/empty/empty-statements.webp";
 import { ref, onMounted, computed, reactive } from "vue";
 import * as yup from "yup";
 import { isAxiosError } from "axios";

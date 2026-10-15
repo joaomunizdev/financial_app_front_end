@@ -94,9 +94,23 @@
         </template>
 
         <template #no-data>
-          <div class="text-body-2 text-medium-emphasis pa-6 text-center">
-            Nenhuma assinatura encontrada.
-          </div>
+          <EmptyState
+            v-if="hasFilters"
+            :image="emptySearch"
+            title="Nenhuma assinatura encontrada"
+            description="Nada corresponde aos filtros escolhidos."
+            action-text="Limpar filtros"
+            action-icon="mdi-filter-remove-outline"
+            @action="clearFilters"
+          />
+          <EmptyState
+            v-else
+            :image="emptySubscriptions"
+            title="Nenhuma assinatura cadastrada"
+            description="Cobranças recorrentes entram automaticamente nas faturas."
+            action-text="Nova assinatura"
+            @action="openCreate"
+          />
         </template>
       </v-data-table>
     </v-card>
@@ -155,6 +169,9 @@
 
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptySubscriptions from "../assets/empty/empty-subscriptions.webp";
+import emptySearch from "../assets/empty/empty-search.webp";
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";
@@ -253,6 +270,10 @@ const filteredItems = computed(() => {
     data = data.filter((i) => i.active === filterActive.value);
   return data;
 });
+
+const hasFilters = computed(
+  () => !!search.value || !!filterCardId.value || filterActive.value !== null
+);
 
 function clearFilters() {
   search.value = "";

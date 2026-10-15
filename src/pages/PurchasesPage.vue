@@ -85,6 +85,25 @@
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
+        <template #no-data>
+          <EmptyState
+            v-if="hasFilters"
+            :image="emptySearch"
+            title="Nada encontrado com esses filtros"
+            description="Tente outro cartão ou responsável."
+            action-text="Limpar filtros"
+            action-icon="mdi-filter-remove-outline"
+            @action="clearFilters"
+          />
+          <EmptyState
+            v-else
+            :image="emptyPurchases"
+            title="Nenhuma compra lançada"
+            description="Lance compras à vista ou parceladas para montar suas faturas."
+            action-text="Nova compra"
+            @action="openNew"
+          />
+        </template>
       </v-data-table>
     </v-card>
 
@@ -109,7 +128,10 @@
 
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
-import { ref, reactive, onMounted, watch } from "vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyPurchases from "../assets/empty/empty-purchases.webp";
+import emptySearch from "../assets/empty/empty-search.webp";
+import { ref, reactive, computed, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import PurchaseForm from "../components/PurchaseForm.vue";
 import type { PurchaseFormValues } from "../schemas/purchaseSchema";
@@ -150,6 +172,13 @@ function cardNickname(cardId: string) {
 
 function tenantName(tenantId: string) {
   return tenants.value.find((t) => t.id === tenantId)?.name ?? "—";
+}
+
+const hasFilters = computed(() => !!(filters.creditCardId || filters.tenantId));
+
+function clearFilters() {
+  filters.creditCardId = null;
+  filters.tenantId = null;
 }
 
 function openNew() {

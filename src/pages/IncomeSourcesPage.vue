@@ -32,6 +32,15 @@
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
+        <template #no-data>
+          <EmptyState
+            :image="emptyIncome"
+            title="Cadastre suas rendas"
+            description="Elas entram no saldo de cada responsável nos relatórios."
+            action-text="Nova fonte de renda"
+            @action="openNew"
+          />
+        </template>
       </v-data-table>
     </v-card>
 
@@ -84,6 +93,8 @@
 
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyIncome from "../assets/empty/empty-income.webp";
 import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";

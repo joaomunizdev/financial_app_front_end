@@ -32,6 +32,25 @@
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
+        <template #no-data>
+          <EmptyState
+            v-if="search"
+            :image="emptySearch"
+            title="Nenhum responsável encontrado"
+            :description="`Nada corresponde a “${search}”.`"
+            action-text="Limpar busca"
+            action-icon="mdi-close"
+            @action="search = ''"
+          />
+          <EmptyState
+            v-else
+            :image="emptyTenants"
+            title="Quem participa das contas?"
+            description="Cadastre as pessoas a quem os gastos e as rendas são atribuídos."
+            action-text="Novo responsável"
+            @action="openNew"
+          />
+        </template>
       </v-data-table>
     </v-card>
 
@@ -62,6 +81,9 @@
 
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyTenants from "../assets/empty/empty-tenants.webp";
+import emptySearch from "../assets/empty/empty-search.webp";
 import { ref, reactive, onMounted, computed, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";
