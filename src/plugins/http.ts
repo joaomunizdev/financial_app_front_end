@@ -1,6 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "../stores/auth";
 import { useToastStore } from "../stores/toast";
+import { useConnectionStore } from "../stores/connection";
 import { withDetail } from "../utils/api-error";
 
 type ToastAction = "create" | "update" | "delete" | "pay";
@@ -82,6 +83,7 @@ let redirectingToLogin = false;
 
 http.interceptors.response.use(
   (res) => {
+    useConnectionStore().markOnline();
     const meta = res.config.toastMeta;
     if (meta) {
       useToastStore().show({ message: buildMessage(meta, true), color: "success" });
@@ -91,6 +93,11 @@ http.interceptors.response.use(
   async (err: AxiosError) => {
     const config = err.config;
     const status = err.response?.status;
+
+    // No response at all (not a cancellation): the server is unreachable.
+    if (!err.response && err.code !== AxiosError.ERR_CANCELED) {
+      useConnectionStore().markOffline();
+    }
 
     if (status === 401) {
       const auth = useAuthStore();
@@ -108,7 +115,8 @@ http.interceptors.response.use(
       const isRead = (config.method ?? "get").toLowerCase() === "get";
       if (meta) {
         useToastStore().show({ message: withDetail(buildMessage(meta, false), err), color: "error" });
-      } else if (isRead) {
+      } else if (isRead && err.response) {
+        // Without a response the app shell shows the offline state instead of a toast.
         useToastStore().show({
           message: withDetail("Não foi possível carregar os dados.", err),
           color: "error",

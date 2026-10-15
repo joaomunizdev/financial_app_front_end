@@ -136,7 +136,17 @@
 
       <v-main class="app-main">
         <div class="app-container">
-          <router-view />
+          <v-card v-if="connection.offline" class="mx-auto mt-6" max-width="560">
+            <EmptyState
+              :image="offlineImage"
+              title="Não conseguimos conectar"
+              description="O servidor não respondeu. Verifique sua conexão e tente de novo."
+              action-text="Tentar de novo"
+              action-icon="mdi-refresh"
+              @action="retry"
+            />
+          </v-card>
+          <router-view v-else />
         </div>
       </v-main>
     </template>
@@ -171,6 +181,9 @@ import { useToastStore } from "../stores/toast";
 import AppLogo from "./AppLogo.vue";
 import ThemeSwitcher from "./ThemeSwitcher.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import EmptyState from "./EmptyState.vue";
+import offlineImage from "../assets/empty/offline.webp";
+import { useConnectionStore } from "../stores/connection";
 
 type NavItem = { to: string; title: string; icon: string; pageTitle?: string };
 
@@ -205,6 +218,7 @@ const RAIL_KEY = "financial-app-sidebar-rail";
 
 const auth = useAuthStore();
 const toast = useToastStore();
+const connection = useConnectionStore();
 const route = useRoute();
 const router = useRouter();
 const { mdAndDown } = useDisplay();
@@ -260,6 +274,11 @@ const userInitials = computed(() => {
   const email = auth.userEmail;
   return email ? email.slice(0, 2).toUpperCase() : "?";
 });
+
+function retry() {
+  connection.markOnline();
+  location.reload();
+}
 
 async function logout() {
   await auth.logout();

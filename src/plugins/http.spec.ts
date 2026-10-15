@@ -4,6 +4,7 @@ import { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig } from "
 import http from "./http";
 import { useToastStore } from "../stores/toast";
 import { useAuthStore } from "../stores/auth";
+import { useConnectionStore } from "../stores/connection";
 import { fakeJwt } from "../test/helpers";
 
 let lastConfig: InternalAxiosRequestConfig | null = null;
@@ -99,5 +100,23 @@ describe("http interceptors", () => {
     expect(localStorage.getItem("token")).toBeNull();
     expect(assign).toHaveBeenCalledWith("/login");
     expect(useToastStore().visible).toBe(false);
+  });
+
+  it("flags the connection as offline when the server does not answer", async () => {
+    http.defaults.adapter = async (config) => {
+      throw new AxiosError("Network Error", AxiosError.ERR_NETWORK, config);
+    };
+    await expect(http.get("/tenants")).rejects.toBeInstanceOf(AxiosError);
+    expect(useConnectionStore().offline).toBe(true);
+
+    respondWith(200, []);
+    await http.get("/tenants");
+    expect(useConnectionStore().offline).toBe(false);
+  });
+
+  it("does not flag offline for HTTP errors", async () => {
+    respondWith(500);
+    await expect(http.get("/tenants")).rejects.toBeInstanceOf(AxiosError);
+    expect(useConnectionStore().offline).toBe(false);
   });
 });
