@@ -72,7 +72,7 @@ const auth = useAuthStore();
 const form = reactive({ name: "", email: "", password: "" });
 const loading = ref(false);
 
-// Mirrors the backend RegisterDto (IsEmail, MinLength(6)); name fits the 120-char column.
+// Mirrors the backend RegisterDto (IsEmail, MinLength(8)); name fits the 120-char column.
 const schema = yup.object({
   name: yup
     .string()
@@ -87,7 +87,7 @@ const schema = yup.object({
   password: yup
     .string()
     .required("Senha é obrigatória")
-    .min(6, "A senha deve ter pelo menos 6 caracteres"),
+    .min(8, "A senha deve ter pelo menos 8 caracteres"),
 });
 
 const { errors, validateAll } = useFormErrors(schema, [
