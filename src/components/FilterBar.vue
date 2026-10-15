@@ -1,5 +1,5 @@
 <template>
-  <v-sheet class="pa-3 rounded-xl filter-bar" color="surface" elevation="1">
+  <v-sheet class="pa-3 filter-bar" color="surface" border>
     <div class="filter-grid">
       <div>
         <v-text-field
@@ -8,8 +8,6 @@
           label="Ano"
           :min="MIN_YEAR"
           :max="MAX_YEAR"
-          density="comfortable"
-          variant="outlined"
           hide-details
           prepend-inner-icon="mdi-calendar-range"
         />
@@ -22,8 +20,6 @@
           item-title="label"
           item-value="value"
           label="Mês"
-          density="comfortable"
-          variant="outlined"
           hide-details
           prepend-inner-icon="mdi-calendar-month-outline"
         />
@@ -32,7 +28,8 @@
       <div class="filter-actions">
         <v-btn
           class="filter-action"
-          variant="tonal"
+          variant="outlined"
+      color="default"
           prepend-icon="mdi-filter"
           @click="emitApply"
         >

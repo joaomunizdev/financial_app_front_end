@@ -1,9 +1,11 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Fontes de renda</div>
+    <PageHeader
+      title="Fontes de renda"
+      description="Rendas fixas e pontuais usadas no saldo dos relatórios."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openNew">Nova fonte de renda</v-btn>
-    </div>
+    </PageHeader>
     <v-card>
       <v-data-table
         :items="items"
@@ -29,6 +31,15 @@
             @click="remove(item)"
             ><v-icon>mdi-delete</v-icon></v-btn
           >
+        </template>
+        <template #no-data>
+          <EmptyState
+            :image="emptyIncome"
+            title="Cadastre suas rendas"
+            description="Elas entram no saldo de cada responsável nos relatórios."
+            action-text="Nova fonte de renda"
+            @action="openNew"
+          />
         </template>
       </v-data-table>
     </v-card>
@@ -81,6 +92,9 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyIncome from "../assets/empty/empty-income.webp";
 import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";

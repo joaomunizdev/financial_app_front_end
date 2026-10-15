@@ -65,7 +65,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import("../pages/SubscriptionsPage.vue"),
     meta: { auth: true },
   },
-  { path: "/:pathMatch(.*)*", redirect: "/dashboard" },
+  {
+    path: "/:pathMatch(.*)*",
+    component: () => import("../pages/NotFoundPage.vue"),
+    meta: { auth: true },
+  },
 ];
 
 const router = createRouter({

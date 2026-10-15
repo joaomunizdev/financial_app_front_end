@@ -1,8 +1,8 @@
 <template>
   <v-sheet
-    class="pa-3 rounded-xl d-flex flex-wrap align-center ga-3"
+    class="pa-3 d-flex flex-wrap align-center ga-3"
     color="surface"
-    elevation="1"
+    border
   >
     <v-select
       v-model="localCardId"
@@ -11,8 +11,6 @@
       item-value="id"
       label="Cartão"
       clearable
-      density="comfortable"
-      variant="outlined"
       hide-details
       style="min-width: 260px"
       prepend-inner-icon="mdi-credit-card-outline"
@@ -24,8 +22,6 @@
       label="Ano"
       :min="MIN_YEAR"
       :max="MAX_YEAR"
-      density="comfortable"
-      variant="outlined"
       hide-details
       style="max-width: 140px"
       prepend-inner-icon="mdi-calendar-range"
@@ -37,8 +33,6 @@
       item-title="label"
       item-value="value"
       label="Mês"
-      density="comfortable"
-      variant="outlined"
       hide-details
       style="max-width: 180px"
       prepend-inner-icon="mdi-calendar-month-outline"
@@ -46,7 +40,8 @@
 
     <v-spacer />
 
-    <v-btn variant="tonal" prepend-icon="mdi-magnify" @click="$emit('find')">
+    <v-btn variant="outlined"
+      color="default" prepend-icon="mdi-magnify" @click="$emit('find')">
       Buscar fatura
     </v-btn>
 

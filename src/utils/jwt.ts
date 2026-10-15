@@ -4,6 +4,17 @@ function decodeBase64Url(segment: string): string {
   return atob(padded);
 }
 
+/** Decoded JWT payload (no signature check), or null when malformed. */
+export function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    return JSON.parse(decodeBase64Url(parts[1])) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * True when the JWT is malformed or its `exp` claim is in the past.
  * The signature is not verified — that is the backend's job; this only avoids using a dead session.

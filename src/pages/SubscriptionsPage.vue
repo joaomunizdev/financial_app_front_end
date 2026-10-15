@@ -1,15 +1,17 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Assinaturas</div>
+    <PageHeader
+      title="Assinaturas"
+      description="Cobranças recorrentes incluídas nas faturas dos cartões."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openCreate">
         Nova assinatura
       </v-btn>
-    </div>
+    </PageHeader>
     <v-sheet
-      class="pa-3 rounded-xl d-flex flex-wrap align-center ga-3"
+      class="pa-3 d-flex flex-wrap align-center ga-3"
       color="surface"
-      elevation="1"
+      border
     >
       <v-text-field
         v-model="search"
@@ -92,9 +94,23 @@
         </template>
 
         <template #no-data>
-          <div class="text-body-2 text-medium-emphasis pa-6 text-center">
-            Nenhuma assinatura encontrada.
-          </div>
+          <EmptyState
+            v-if="hasFilters"
+            :image="emptySearch"
+            title="Nenhuma assinatura encontrada"
+            description="Nada corresponde aos filtros escolhidos."
+            action-text="Limpar filtros"
+            action-icon="mdi-filter-remove-outline"
+            @action="clearFilters"
+          />
+          <EmptyState
+            v-else
+            :image="emptySubscriptions"
+            title="Nenhuma assinatura cadastrada"
+            description="Cobranças recorrentes entram automaticamente nas faturas."
+            action-text="Nova assinatura"
+            @action="openCreate"
+          />
         </template>
       </v-data-table>
     </v-card>
@@ -152,6 +168,10 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptySubscriptions from "../assets/empty/empty-subscriptions.webp";
+import emptySearch from "../assets/empty/empty-search.webp";
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";
@@ -250,6 +270,10 @@ const filteredItems = computed(() => {
     data = data.filter((i) => i.active === filterActive.value);
   return data;
 });
+
+const hasFilters = computed(
+  () => !!search.value || !!filterCardId.value || filterActive.value !== null
+);
 
 function clearFilters() {
   search.value = "";

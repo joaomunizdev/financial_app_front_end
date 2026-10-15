@@ -1,13 +1,15 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Compras</div>
+    <PageHeader
+      title="Compras"
+      description="Compras à vista e parceladas lançadas nos cartões."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openNew">Nova</v-btn>
-    </div>
+    </PageHeader>
     <v-sheet
-      class="pa-3 rounded-xl d-flex flex-wrap align-center ga-3"
+      class="pa-3 d-flex flex-wrap align-center ga-3"
       color="surface"
-      elevation="1"
+      border
     >
       <v-select
         v-model="filters.creditCardId"
@@ -83,6 +85,25 @@
             ><v-icon>mdi-delete</v-icon></v-btn
           >
         </template>
+        <template #no-data>
+          <EmptyState
+            v-if="hasFilters"
+            :image="emptySearch"
+            title="Nada encontrado com esses filtros"
+            description="Tente outro cartão ou responsável."
+            action-text="Limpar filtros"
+            action-icon="mdi-filter-remove-outline"
+            @action="clearFilters"
+          />
+          <EmptyState
+            v-else
+            :image="emptyPurchases"
+            title="Nenhuma compra lançada"
+            description="Lance compras à vista ou parceladas para montar suas faturas."
+            action-text="Nova compra"
+            @action="openNew"
+          />
+        </template>
       </v-data-table>
     </v-card>
 
@@ -106,7 +127,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from "vue";
+import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyPurchases from "../assets/empty/empty-purchases.webp";
+import emptySearch from "../assets/empty/empty-search.webp";
+import { ref, reactive, computed, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import PurchaseForm from "../components/PurchaseForm.vue";
 import type { PurchaseFormValues } from "../schemas/purchaseSchema";
@@ -147,6 +172,13 @@ function cardNickname(cardId: string) {
 
 function tenantName(tenantId: string) {
   return tenants.value.find((t) => t.id === tenantId)?.name ?? "—";
+}
+
+const hasFilters = computed(() => !!(filters.creditCardId || filters.tenantId));
+
+function clearFilters() {
+  filters.creditCardId = null;
+  filters.tenantId = null;
 }
 
 function openNew() {

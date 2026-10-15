@@ -1,9 +1,11 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Cartões</div>
+    <PageHeader
+      title="Cartões"
+      description="Cartões de crédito e débito usados nas compras, faturas e assinaturas."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openNew">Novo cartão</v-btn>
-    </div>
+    </PageHeader>
     <v-card>
       <v-data-table
         :items="items"
@@ -35,6 +37,15 @@
             @click="remove(item)"
             ><v-icon>mdi-delete</v-icon></v-btn
           >
+        </template>
+        <template #no-data>
+          <EmptyState
+            :image="emptyCards"
+            title="Cadastre seu primeiro cartão"
+            description="Cartões de crédito e débito aparecem nas compras, faturas e no Dashboard."
+            action-text="Novo cartão"
+            @action="openNew"
+          />
         </template>
       </v-data-table>
     </v-card>
@@ -98,6 +109,9 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyCards from "../assets/empty/empty-cards.webp";
 import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";

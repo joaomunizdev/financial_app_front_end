@@ -1,9 +1,11 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Responsáveis</div>
+    <PageHeader
+      title="Responsáveis"
+      description="Pessoas ou grupos a quem os gastos e as rendas são atribuídos."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openNew">Novo</v-btn>
-    </div>
+    </PageHeader>
     <v-card>
       <v-text-field
         v-model="search"
@@ -29,6 +31,25 @@
             @click="remove(item)"
             ><v-icon>mdi-delete</v-icon></v-btn
           >
+        </template>
+        <template #no-data>
+          <EmptyState
+            v-if="search"
+            :image="emptySearch"
+            title="Nenhum responsável encontrado"
+            :description="`Nada corresponde a “${search}”.`"
+            action-text="Limpar busca"
+            action-icon="mdi-close"
+            @action="search = ''"
+          />
+          <EmptyState
+            v-else
+            :image="emptyTenants"
+            title="Quem participa das contas?"
+            description="Cadastre as pessoas a quem os gastos e as rendas são atribuídos."
+            action-text="Novo responsável"
+            @action="openNew"
+          />
         </template>
       </v-data-table>
     </v-card>
@@ -59,6 +80,10 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import emptyTenants from "../assets/empty/empty-tenants.webp";
+import emptySearch from "../assets/empty/empty-search.webp";
 import { ref, reactive, onMounted, computed, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";
