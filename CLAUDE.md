@@ -86,7 +86,7 @@ CI (`.github/workflows/ci.yml`): `npm ci → typecheck → test:run → build` o
 - Dates: API uses `"YYYY-MM-DD"`. Default "today" is `todayLocalISO()` (never `toISOString().slice(0,10)` — UTC shifts the day in Brazil after 21:00). Bind `<input type="date">` via `toDateInput()`. Display with `formatDateBR()` (UTC on purpose). Periods: `formatPeriod(year, month)`, months list `MONTHS` (1-based).
 
 ### Validation
-- Default pattern: inline Yup schema + `useFormErrors(schema, ["field", ...] as const)` → `errors`, `validateAll(form)`, `validateField(field, form)`, `clearErrors()`; bind `:error-messages="errors.field"`. Messages in pt-BR. Mirror backend DTO limits (lengths, `MinLength(6)` passwords, email format).
+- Default pattern: inline Yup schema + `useFormErrors(schema, ["field", ...] as const)` → `errors`, `validateAll(form)`, `validateField(field, form)`, `clearErrors()`; bind `:error-messages="errors.field"`. Messages in pt-BR. Mirror backend DTO limits (lengths, sign-up password ≥ 8 chars, email format).
 - `PurchaseForm` uses VeeValidate `useForm` + `purchaseSchema` (date kept as a string, never cast to `Date`).
 
 ## 5. State Management (Pinia)
@@ -150,6 +150,7 @@ Backend-owned rules: statement composition/totals, installment scheduling, repor
 - Responsiveness: drawer rails on `mdAndDown`; use `v-row/v-col` and `flex-wrap` sheets.
 - Empty states: `v-alert type="info" variant="tonal"` or the table `#no-data` slot.
 - Icon-only buttons need `aria-label`.
+- Login/Register use `AuthSplitLayout`: brand illustration + message on the left (hidden below 860px), form on the right. Illustrations live in `src/assets/auth/` as 960px-wide WebP (login and register each draw one of two per visit).
 
 ## 10. Testing and Quality
 
