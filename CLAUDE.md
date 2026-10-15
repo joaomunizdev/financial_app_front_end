@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository. The source code is the
 
 ## 1. Project Overview
 
-Personal-finance SPA (credit cards, purchases/installments, statements, subscriptions, fixed expenses, income sources, tenants, reports). It is a thin client over the **Financial App Backend** (NestJS, separate repo `joaomunizdev/financial_app_back_end`, usually checked out at `../financial_app_back_end`; Swagger at `http://localhost:3000/api/docs`). All financial calculations (statement composition/totals, installment impact, report aggregation, PDF generation) live in the backend; the frontend renders, filters, validates, formats and posts data.
+Personal-finance SPA (credit cards, purchases/installments, statements, subscriptions, fixed expenses, income sources, tenants, expense categories, reports). It is a thin client over the **Financial App Backend** (NestJS, separate repo `joaomunizdev/financial_app_back_end`, usually checked out at `../financial_app_back_end`; Swagger at `http://localhost:3000/api/docs`). All financial calculations (statement composition/totals, installment impact, report aggregation, PDF generation) live in the backend; the frontend renders, filters, validates, formats and posts data.
 
 Stack: Vue 3.5 (`<script setup lang="ts">`), TypeScript 5 (`strict`), Vite 5, Vuetify 3.9 (components auto-imported by `vite-plugin-vuetify`), Pinia 2, Vue Router 4, Axios 1, VeeValidate 4 + Yup 1, `@mdi/font`, Vitest 1 + `@vue/test-utils` + happy-dom, `vue-tsc`.
 
@@ -23,6 +23,8 @@ src/
     BarList.vue           # ranked horizontal bars (single accent color, value + share labels)
     MonthlySpendingChart.vue # SVG column chart, last month emphasized, hover tooltip
     EmptyState.vue        # illustrated empty/error state (image, title, one line, single action)
+    CategoryLabel.vue     # category icon + name ("Sem categoria" when missing)
+    CategorySelect.vue    # clearable v-autocomplete of categories with icons (forms and filters)
     CodeVerification.vue  # 6-digit e-mail code step (v-otp-input, inline error, 60 s resend cooldown); used by VerifyEmailPage and the login 2FA step
     ConfirmDialog.vue     # global confirmation dialog driven by stores/confirm
     FilterBar.vue         # year + month (ReportsPage)
@@ -40,7 +42,7 @@ src/
   schemas/                # purchaseSchema.ts (+ PurchaseFormValues), money.ts (moneyField)
   stores/                 # auth.ts, toast.ts (queue), confirm.ts (promise-based), connection.ts (offline flag)
   types/domain.ts         # API entity types (CreditCard, Purchase, Statement, ...)
-  utils/                  # date.ts, jwt.ts, api-error.ts (+ authErrorMessage pt-BR map), dashboard.ts, br.ts (CPF/phone validation + masks), email.ts (blocked test domains, mirror of the backend list)
+  utils/                  # categories.ts (icon list, categoryMap), date.ts, jwt.ts, api-error.ts (+ authErrorMessage pt-BR map), dashboard.ts, br.ts (CPF/phone validation + masks), email.ts (blocked test domains, mirror of the backend list)
   test/                   # setup.ts (happy-dom shims), helpers.ts (fakeJwt)
 ```
 
@@ -116,10 +118,11 @@ Single client: **`src/plugins/http.ts`** (default export). Never create another 
 | Auth | `POST /auth/register` `{name,email,password,cpf,phone,birthDate}` (digits only; 409 e-mail/CPF in use) → no token, code e-mailed; `POST /auth/verify-email {email,code}` → `{ accessToken }`; `POST /auth/login` → `{ accessToken }` \| `{ twoFactorRequired, challengeToken }` \| `{ emailVerificationRequired, email }`; `POST /auth/login/verify {challengeToken,code}`; resend: `/auth/resend-verification`, `/auth/login/resend` (JWT `exp` = 1 day) |
 | Users | `GET /users/me` (`UserProfile`), `PATCH /users/me` (name, cpf, phone, birthDate), `POST /users/me/password`, `PATCH /users/me/two-factor {enabled,password}`; wrong current password = 400 |
 | Credit cards | CRUD `/credit-cards`; `cardType: "credit" \| "debit"` (debit: `limitAmount` null, no installment purchases → 400). **PATCH credit→debit converts the card's installment purchases into monthly one-time purchases** (same description, statement items relabeled "Compra à vista", statement totals unchanged; irreversible). Delete → 409 if the card has purchases or statements (deactivate with `PATCH {active:false}`) |
+| Categories | `GET /categories` → defaults + own `{id,name,icon,isDefault}`; POST/PATCH/DELETE own only (defaults → 403); name 1–60, unique per account ignoring case incl. defaults (409); `icon` = MDI class (`^mdi-[a-z0-9-]+$`); delete leaves records uncategorized |
 | Tenants | CRUD `/tenants`; delete → 403 "Tenant has purchases" when it has purchases |
-| Purchases | CRUD `/purchases`; list filters `creditCardId`, `tenantId` (also `dateStart`, `dateEnd`, `isInstallment`, unused); `installmentsTotal/Paid` validated only when `isInstallment` |
-| Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items`; `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`) — **only for locked statements** (400 otherwise). Inactive cards' statements are hidden |
-| Subscriptions / Fixed expenses / Income sources | CRUD; `description` ≤ 180; `tenantId` nullable in entities (SET NULL on tenant delete); income `incomeType: "fixed" \| "one_time"` |
+| Purchases | CRUD `/purchases`; optional `categoryId` (nullable); **an update that only changes `categoryId` is accepted even for purchases in locked/paid statements** (other changes → 409); list filters `creditCardId`, `tenantId` (also `dateStart`, `dateEnd`, `isInstallment`, unused); `installmentsTotal/Paid` validated only when `isInstallment` |
+| Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items` (each with `categoryId`, kept in sync with the purchase/subscription); `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`) — **only for locked statements** (400 otherwise). Inactive cards' statements are hidden |
+| Subscriptions / Fixed expenses / Income sources | CRUD; subscriptions take an optional `categoryId`; `description` ≤ 180; `tenantId` nullable in entities (SET NULL on tenant delete); income `incomeType: "fixed" \| "one_time"` |
 | Reports | `GET /reports/by-tenant?year&month` (also returns purchases/subscriptions/fixed/income/accumulated totals per tenant); `GET /reports/installments-total` (not used by the UI); `GET /reports/tenants/:id/monthly-pdf` (blob) |
 
 Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — build payloads explicitly, never spread entities.
@@ -136,9 +139,10 @@ Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — b
 
 ## 8. Business Domains (frontend behavior)
 
-- **Dashboard**: period select (last 12 months) driving a summary strip (cards, tenants, combined credit limit, "Gastos no mês" = sum of the month's statement totals + % vs. previous month), "Gastos por cartão" (BarList) and "Gastos por mês" (6 months), card tiles and tenant chips. All spending figures come from **statement totals** (`GET /statements`, aggregated in `utils/dashboard.ts`), so months without generated statements show 0. Category and investment charts from the approved design wait for those backend features; BarList is meant to be reused for categories.
+- **Dashboard**: period select (last 12 months) driving a summary strip (cards, tenants, combined credit limit, "Gastos no mês" = sum of the month's statement totals + % vs. previous month), "Gastos por cartão" (BarList) and "Gastos por mês" (6 months), card tiles and tenant chips. All spending figures come from **statement totals** (`GET /statements`, aggregated in `utils/dashboard.ts`), so months without generated statements show 0. The investment chart from the approved design waits for that backend feature; a category chart can now be built from statement items' `categoryId`; BarList is meant to be reused for categories.
 - **Credit cards**: nickname ≤ 80, brand ≤ 50, `last4` exactly 4 digits, type Crédito/Débito; limit money ≥ 0 required for credit, hidden and sent as `null` for debit. Editing credit → debit asks for confirmation (conversion of installment purchases) before the PATCH.
 - **Tenants**: name ≤ 120, client-side search.
+- **Categories**: two sections sharing one search — "Suas categorias" (edit/delete with confirm; `empty-categories` invitation when the user has none) and "Categorias padrão" (read-only, no actions). Name ≤ 60, duplicate check against the loaded list, icon picked from `CATEGORY_ICONS`. Purchases, subscriptions and statement items show the category (`CategoryLabel`, resolved with `categoryMap` from `GET /categories`); Purchases and Subscriptions filter by category client-side. New subscriptions default to "Assinaturas".
 - **Purchases**: filters by card/tenant (server-side params); `PurchaseForm` rules: card, tenant, description ≤ 255, amount > 0, date `YYYY-MM-DD`; installments: total integer ≥ 2, paid 0..total; the "Parcelada?" switch is hidden and forced off for debit cards. Payload sends `installmentsTotal: null, installmentsPaid: 0` for one-time purchases.
 - **Statements**: list by period (+ optional card); "Limpar" resets to current month/all cards; batch generation runs sequentially, continues on failure and reports a summary; detail dialog edits dates, signed adjustment and lock, then re-reads the statement; pay dialog requires amount > 0 and a date (defaults: total, local today) and locks an open statement first (`skipToast`, so only the payment toast shows); the lock toggle shows its own "fechada/reaberta" toasts.
 - **Subscriptions**: client-side filters (search, card, status); validated form with money mask.
