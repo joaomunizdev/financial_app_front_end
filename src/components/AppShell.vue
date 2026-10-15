@@ -37,10 +37,12 @@
               :key="item.to"
               :to="item.to"
               :prepend-icon="item.icon"
-              :title="item.title"
+              :title="rail && !mobile ? undefined : item.title"
+              :aria-label="item.title"
               v-tooltip:end="rail && !mobile ? item.title : undefined"
               rounded="lg"
               class="app-nav__item"
+              :class="{ 'app-nav__item--rail': rail && !mobile }"
             />
           </template>
         </v-list>
@@ -356,6 +358,17 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 }
 .app-nav__item :deep(.v-list-item__spacer) {
   width: 12px !important;
+}
+/* Collapsed rail: icon only, centered in the 64px column (the name is in the tooltip). */
+.app-nav__item--rail {
+  grid-template-columns: 1fr 0 0;
+  padding-inline: 0 !important;
+}
+.app-nav__item--rail :deep(.v-list-item__prepend) {
+  justify-content: center;
+}
+.app-nav__item--rail :deep(.v-list-item__spacer) {
+  width: 0 !important;
 }
 .app-nav__item :deep(.v-list-item-title) {
   font-size: 13px;
