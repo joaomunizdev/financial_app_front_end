@@ -105,7 +105,7 @@ Single client: **`src/plugins/http.ts`** (default export). Never create another 
 | Domain | Notes |
 |---|---|
 | Auth | `POST /auth/login` → `{ accessToken }` (JWT, `exp` = 1 day); `POST /auth/register` (409 if email exists) |
-| Credit cards | CRUD `/credit-cards`; `cardType: "credit" \| "debit"` (debit: `limitAmount` null, no installment purchases → 400). **PATCH credit→debit converts the card's installment purchases into monthly one-time purchases** (`"<desc> (k/n)"`, statement totals unchanged; irreversible). Delete → 409 if the card has purchases or statements (deactivate with `PATCH {active:false}`) |
+| Credit cards | CRUD `/credit-cards`; `cardType: "credit" \| "debit"` (debit: `limitAmount` null, no installment purchases → 400). **PATCH credit→debit converts the card's installment purchases into monthly one-time purchases** (same description, statement items relabeled "Compra à vista", statement totals unchanged; irreversible). Delete → 409 if the card has purchases or statements (deactivate with `PATCH {active:false}`) |
 | Tenants | CRUD `/tenants`; delete → 403 "Tenant has purchases" when it has purchases |
 | Purchases | CRUD `/purchases`; list filters `creditCardId`, `tenantId` (also `dateStart`, `dateEnd`, `isInstallment`, unused); `installmentsTotal/Paid` validated only when `isInstallment` |
 | Statements | `GET /statements` → list; **with `creditCardId`+`year`+`month` → single object or 404**; `POST` generates (`{creditCardId, year, month}`); `GET /:id` includes `items`; `PATCH /:id` (`closingDate`, `dueDate` nullable, `locked`, signed `adjustmentAmount`); `POST /:id/pay` (`amount`, `paidAt`) — **only for locked statements** (400 otherwise). Inactive cards' statements are hidden |
