@@ -439,7 +439,7 @@ src/schemas/purchaseSchema.ts
 
 ## UI Framework
 
-The interface is built with Vuetify 3.
+The interface is built with Vuetify 3 with a neutral SaaS look: Inter typography, zinc neutrals with a single indigo accent, flat bordered cards, light and dark themes, and a grouped sidebar that collapses to an icon rail.
 
 The project uses reusable layouts and components such as:
 

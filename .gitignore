@@ -1,3 +1,6 @@
 /node_modules
 .env
 /dist
+# Superdesign: only the design system is versioned
+.superdesign/*
+!.superdesign/design-system.md

@@ -17,7 +17,11 @@ src/
   main.ts                 # app bootstrap + app.config.errorHandler (ignores AxiosErrors, already reported)
   App.vue                 # renders <AppShell/>
   components/
-    AppShell.vue          # auth layout vs. drawer/app-bar layout, nav items, page titles, global snackbar + <ConfirmDialog/>
+    AppShell.vue          # auth layout vs. app layout: grouped, collapsible sidebar (240px / 64px rail, state in localStorage "financial-app-sidebar-rail"), top bar (breadcrumb, Ctrl+K page jump, ThemeSwitcher), account menu, global toast + <ConfirmDialog/>
+    AppLogo.vue           # logo mark (indigo rounded square) + "Financial App" wordmark; `compact` = mark only
+    PageHeader.vue        # page title + description + actions slot — every page starts with it
+    BarList.vue           # ranked horizontal bars (single accent color, value + share labels)
+    MonthlySpendingChart.vue # SVG column chart, last month emphasized, hover tooltip
     ConfirmDialog.vue     # global confirmation dialog driven by stores/confirm
     FilterBar.vue         # year + month (ReportsPage)
     PeriodFilterBar.vue   # card + year + month + find/generate/clear (StatementsPage)
@@ -28,12 +32,13 @@ src/
     useFormErrors.ts      # Yup schema -> reactive per-field errors for :error-messages
   pages/*Page.vue         # one page per route; pages own their data fetching
   plugins/http.ts         # THE Axios instance (auth header, toasts, 401 handling)
-  plugins/vuetify.ts      # themes + component defaults (no global component registration)
+  plugins/vuetify.ts      # themes, pt locale, component defaults (no global component registration)
+  styles/app.css          # global look: Inter, page/section title classes, 12px cards, table header, buttons
   router/index.ts         # routes, RouteMeta typing, auth guard, catch-all
   schemas/                # purchaseSchema.ts (+ PurchaseFormValues), money.ts (moneyField)
   stores/                 # auth.ts, toast.ts (queue), confirm.ts (promise-based)
   types/domain.ts         # API entity types (CreditCard, Purchase, Statement, ...)
-  utils/                  # date.ts, jwt.ts, api-error.ts
+  utils/                  # date.ts, jwt.ts, api-error.ts, dashboard.ts (dashboard aggregations)
   test/                   # setup.ts (happy-dom shims), helpers.ts (fakeJwt)
 ```
 
@@ -62,11 +67,13 @@ CI (`.github/workflows/ci.yml`): `npm ci → typecheck → test:run → build` o
 - `<script setup lang="ts">`, Composition API only. Template, script, then `<style scoped>`.
 - Pages: `src/pages/<Domain>Page.vue`; routes lazy-loaded. Props/emits declared type-only (`defineProps<{...}>()`, `defineEmits<{ (e: "x", v: T): void }>()`).
 - `<script setup>` must not export types; put shared form types next to their schema (e.g. `PurchaseFormValues` in `schemas/purchaseSchema.ts`).
-- CRUD page template: header (`text-h5` + "Novo…" button calling `openNew()`), `<v-card><v-data-table :items :headers :loading class="pa-2">`, actions column (`mdi-pencil` / `mdi-delete color="error"`, both with `aria-label`), `<v-dialog v-model="open">` with the form. Page wrapper: `d-flex flex-column ga-6`.
+- Every page starts with `<PageHeader title description>` (actions in its default slot). CRUD page template: PageHeader + "Novo…" button calling `openNew()`, `<v-card><v-data-table :items :headers :loading class="pa-2">`, actions column (`mdi-pencil` / `mdi-delete color="error"`, both with `aria-label`), `<v-dialog v-model="open">` with the form. Page wrapper: `d-flex flex-column ga-6`.
 - Dialog reset: `openNew()` resets the form explicitly; `watch(open, v => !v && reset)` + `:key="dialogKey"` on the dialog.
 - Multi-field dialogs are one `reactive({ open, loading/saving, ... })` object (`generateDlg`, `detailDlg`, `payDlg`, `exportDlg`).
 - Filter bars use "local ref + two-way watch": props `modelValue*`, emits `update:*` + action events. Invalid years are not emitted (`isValidYear`, API range 2000–2100).
 - Spacing: Vuetify `ga-*`/`ma-*`/`pa-*` utilities (`gap-*` is not a Vuetify class). No empty `<v-row>` spacers.
+- Headings: `.page-title` (24px/600) via PageHeader, `.section-title` (15px/600) for card/section titles; numbers use `.tabular-nums`.
+- Filter bars: `<v-sheet class="pa-3 ..." color="surface" border>` (no elevation, no `rounded-xl`).
 
 ### TypeScript
 - No `any`. Use `types/domain.ts` for API entities and type HTTP calls (`http.get<CreditCard[]>(...)`). Local view-model types extend them (e.g. `FixedExpense & { tenantName: string }`).
@@ -123,7 +130,7 @@ Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — b
 
 ## 8. Business Domains (frontend behavior)
 
-- **Dashboard**: card count, tenant count, combined limit (sum of `limitAmount`), card and tenant lists.
+- **Dashboard**: period select (last 12 months) driving a summary strip (cards, tenants, combined credit limit, "Gastos no mês" = sum of the month's statement totals + % vs. previous month), "Gastos por cartão" (BarList) and "Gastos por mês" (6 months), card tiles and tenant chips. All spending figures come from **statement totals** (`GET /statements`, aggregated in `utils/dashboard.ts`), so months without generated statements show 0. Category and investment charts from the approved design wait for those backend features; BarList is meant to be reused for categories.
 - **Credit cards**: nickname ≤ 80, brand ≤ 50, `last4` exactly 4 digits, type Crédito/Débito; limit money ≥ 0 required for credit, hidden and sent as `null` for debit. Editing credit → debit asks for confirmation (conversion of installment purchases) before the PATCH.
 - **Tenants**: name ≤ 120, client-side search.
 - **Purchases**: filters by card/tenant (server-side params); `PurchaseForm` rules: card, tenant, description ≤ 255, amount > 0, date `YYYY-MM-DD`; installments: total integer ≥ 2, paid 0..total; the "Parcelada?" switch is hidden and forced off for debit cards. Payload sends `installmentsTotal: null, installmentsPaid: 0` for one-time purchases.
@@ -136,7 +143,10 @@ Backend-owned rules: statement composition/totals, installment scheduling, repor
 
 ## 9. UI and Forms
 
-- Themes `lightMinimal`/`darkMinimal` (`plugins/vuetify.ts`); use theme tokens, not hex.
+- Visual direction: neutral SaaS (zinc neutrals, single indigo accent `#4F46E5` / dark `#818CF8`, Inter, 1px borders instead of shadows, 12px card radius, semantic colors only for states). Themes `lightMinimal`/`darkMinimal` in `plugins/vuetify.ts` (extra token `surface-light` for subtle backgrounds); use theme tokens (`rgb(var(--v-theme-…))`), not hex.
+- Vuetify defaults: fields `outlined` + `compact`; buttons `flat` primary, `rounded="lg"`, sentence case; cards `flat` + `border`; buttons inside `v-data-table` default to neutral color (row actions are quiet; delete keeps `color="error"`). Secondary actions use `variant="outlined" color="default"`.
+- Vuetify locale is `pt` (table pagination, etc.).
+- Charts follow the dataviz rules: bars/columns over pie/donut, single axis, accent color only for the emphasized value, categorical palettes validated for CVD, direct labels + hover tooltips.
 - Responsiveness: drawer rails on `mdAndDown`; use `v-row/v-col` and `flex-wrap` sheets.
 - Empty states: `v-alert type="info" variant="tonal"` or the table `#no-data` slot.
 - Icon-only buttons need `aria-label`.
