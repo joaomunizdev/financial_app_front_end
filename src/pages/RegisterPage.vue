@@ -59,7 +59,7 @@ const banners = [
   {
     image: register2,
     title: "Organize hoje, economize amanhã.",
-    description: "Veja seus gastos com clareza e decida melhor para onde vai o dinheiro.",
+    description: "Veja seus gastos com clareza e decida melhor.",
   },
 ];
 const banner = banners[Math.floor(Math.random() * banners.length)];
