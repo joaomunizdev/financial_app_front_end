@@ -31,6 +31,7 @@ const ENTITY_MATCHERS: Array<{
   { matcher: /\/fixed-expenses\b/i, entity: "Despesa fixa" },
   { matcher: /\/income-sources\b/i, entity: "Fonte de renda" },
   { matcher: /\/tenants\b/i, entity: "Responsável" },
+  { matcher: /\/categories\b/i, entity: "Categoria" },
   { matcher: /\/auth\/register\b/i, entity: "Usuário" },
   { matcher: /\/users\b/i, entity: "Usuário" },
 ];

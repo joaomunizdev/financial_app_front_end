@@ -215,6 +215,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     items: [
       { to: "/credit-cards", title: "Cartões", icon: "mdi-credit-card-outline" },
       { to: "/tenants", title: "Responsáveis", icon: "mdi-account-multiple-outline" },
+      { to: "/categories", title: "Categorias", icon: "mdi-shape-outline" },
     ],
   },
 ];

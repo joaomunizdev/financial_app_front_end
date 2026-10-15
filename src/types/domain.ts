@@ -22,6 +22,15 @@ export interface CreditCard {
   active: boolean;
 }
 
+/** Expense category: defaults shared by every account (read-only) plus the user's own. */
+export interface Category {
+  id: string;
+  name: string;
+  /** Material Design Icons class, e.g. "mdi-silverware-fork-knife". */
+  icon: string;
+  isDefault: boolean;
+}
+
 export interface Purchase {
   id: string;
   creditCardId: string;
