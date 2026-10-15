@@ -1,7 +1,13 @@
 import * as yup from 'yup';
+import type { PaymentMethod } from '../types/domain';
 
 export const purchaseSchema = yup.object({
-  creditCardId: yup.string().required('O cartão é obrigatório.'),
+  paymentMethod: yup.string().oneOf(['card', 'pix', 'cash']).default('card'),
+  // Only card purchases have a card (Pix and cash don't).
+  creditCardId: yup.string().nullable().when('paymentMethod', {
+    is: 'card',
+    then: schema => schema.required('O cartão é obrigatório.'),
+  }),
   tenantId: yup.string().required('O responsável é obrigatório.'),
   categoryId: yup.string().nullable(),
   description: yup.string().trim().required('A descrição é obrigatória.').max(255, 'Máximo de 255 caracteres.'),
@@ -45,7 +51,8 @@ export const purchaseSchema = yup.object({
 /** Values emitted by PurchaseForm; the page converts them to the API payload. */
 export type PurchaseFormValues = {
   id?: string;
-  creditCardId: string;
+  paymentMethod: PaymentMethod;
+  creditCardId: string | null;
   tenantId: string;
   categoryId: string | null;
   description: string;

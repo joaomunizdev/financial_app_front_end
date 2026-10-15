@@ -40,9 +40,14 @@ export interface CategoryTotal {
   totalAmount: Money;
 }
 
+/** Card purchases go to the card's statements; Pix and cash are one-time and card-less. */
+export type PaymentMethod = "card" | "pix" | "cash";
+
 export interface Purchase {
   id: string;
-  creditCardId: string;
+  paymentMethod: PaymentMethod;
+  /** null for Pix and cash. */
+  creditCardId: string | null;
   tenantId: string;
   categoryId: string | null;
   description: string;

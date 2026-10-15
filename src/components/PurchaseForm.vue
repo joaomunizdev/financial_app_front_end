@@ -1,6 +1,27 @@
 <template>
   <v-form @submit.prevent="submit">
+    <div class="text-body-2 text-medium-emphasis mb-2">Forma de pagamento</div>
+    <v-btn-toggle
+      v-model="paymentMethod"
+      mandatory
+      divided
+      variant="outlined"
+      color="primary"
+      density="comfortable"
+      class="mb-4"
+      aria-label="Forma de pagamento"
+    >
+      <v-btn
+        v-for="m in PAYMENT_METHODS"
+        :key="m.value"
+        :value="m.value"
+        :prepend-icon="m.icon"
+      >
+        {{ m.label }}
+      </v-btn>
+    </v-btn-toggle>
     <v-select
+      v-if="isCard"
       v-model="creditCardId"
       :items="creditCards"
       item-title="nickname"
@@ -47,7 +68,7 @@
     />
 
     <v-switch
-      v-if="!isDebitCard"
+      v-if="isCard && !isDebitCard"
       v-model="isInstallment"
       inset
       label="Parcelada?"
@@ -55,7 +76,11 @@
       color="primary"
     />
     <div v-else class="text-body-2 text-medium-emphasis mt-2 mb-4">
-      Cartão de débito: a compra é registrada à vista.
+      {{
+        isCard
+          ? "Cartão de débito: a compra é registrada à vista."
+          : "Compras no Pix e em dinheiro são à vista e não entram em faturas."
+      }}
     </div>
     <div v-if="isInstallment" class="d-flex ga-4">
       <v-text-field
@@ -83,6 +108,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import CategorySelect from "./CategorySelect.vue";
+import { PAYMENT_METHODS } from "../utils/payment";
 import { useForm } from "vee-validate";
 import {
   purchaseSchema,
@@ -107,6 +133,7 @@ const initial = props.modelValue;
 const { handleSubmit, errors, defineField } = useForm<PurchaseFormValues>({
   validationSchema: purchaseSchema,
   initialValues: {
+    paymentMethod: initial?.paymentMethod ?? "card",
     creditCardId: initial?.creditCardId ?? "",
     tenantId: initial?.tenantId ?? "",
     categoryId: initial?.categoryId ?? null,
@@ -119,7 +146,9 @@ const { handleSubmit, errors, defineField } = useForm<PurchaseFormValues>({
   },
 });
 
+const [paymentMethod] = defineField("paymentMethod");
 const [creditCardId] = defineField("creditCardId");
+const isCard = computed(() => paymentMethod.value === "card");
 const [tenantId] = defineField("tenantId");
 const [categoryId] = defineField("categoryId");
 const [description] = defineField("description");
@@ -155,10 +184,11 @@ const isDebitCard = computed(
     props.creditCards.find((c) => c.id === creditCardId.value)?.cardType ===
     "debit"
 );
+// Debit cards, Pix and cash are one-time only.
 watch(
-  isDebitCard,
-  (debit) => {
-    if (debit) isInstallment.value = false;
+  () => isDebitCard.value || !isCard.value,
+  (oneTimeOnly) => {
+    if (oneTimeOnly) isInstallment.value = false;
   },
   { immediate: true }
 );

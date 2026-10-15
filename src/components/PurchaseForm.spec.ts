@@ -16,6 +16,7 @@ const categories: Category[] = [
 
 const purchase: Purchase = {
   id: "p1",
+  paymentMethod: "card",
   creditCardId: "c1",
   tenantId: "t1",
   categoryId: "cat1",
@@ -83,6 +84,27 @@ describe("PurchaseForm", () => {
     await submit(wrapper);
     const values = wrapper.emitted("submit")![0][0] as PurchaseFormValues;
     expect(values).toMatchObject({ creditCardId: "d1", isInstallment: false });
+  });
+
+  it("submits a Pix purchase without card or installments", async () => {
+    const wrapper = mountForm({ ...purchase, paymentMethod: "pix", creditCardId: null });
+    expect(wrapper.text()).not.toContain("Parcelada?");
+    expect(wrapper.text()).toContain("não entram em faturas");
+    expect(wrapper.findAll(".v-select").length).toBe(1); // only "Responsável"
+
+    await submit(wrapper);
+    const values = wrapper.emitted("submit")![0][0] as PurchaseFormValues;
+    expect(values).toMatchObject({ paymentMethod: "pix", isInstallment: false });
+  });
+
+  it("requires a card only for card purchases", async () => {
+    const wrapper = mountForm(null);
+    await submit(wrapper);
+    expect(wrapper.text()).toContain("O cartão é obrigatório.");
+
+    const pix = mountForm({ ...purchase, paymentMethod: "cash", creditCardId: null, description: "" });
+    await submit(pix);
+    expect(pix.text()).not.toContain("O cartão é obrigatório.");
   });
 
   it("allows a purchase without category", async () => {

@@ -39,6 +39,17 @@
         hide-details
         style="min-width: 240px"
       />
+      <v-select
+        v-model="filters.paymentMethod"
+        :items="PAYMENT_METHODS"
+        item-title="label"
+        item-value="value"
+        label="Forma de pagamento"
+        clearable
+        hide-details
+        prepend-inner-icon="mdi-wallet-outline"
+        style="min-width: 220px"
+      />
     </v-sheet>
     <v-card>
       <v-data-table-server
@@ -60,9 +71,12 @@
           formatDateBR(item.purchaseDate)
         }}</template>
 
-        <template #item.card="{ item }">{{
-          cardNickname(item.creditCardId)
-        }}</template>
+        <template #item.card="{ item }">
+          <span v-if="item.creditCardId">{{ cardNickname(item.creditCardId) }}</span>
+          <v-chip v-else size="small" variant="tonal" color="default">
+            {{ paymentMethodLabel(item.paymentMethod) }}
+          </v-chip>
+        </template>
 
         <template #item.tenant="{ item }">{{
           tenantName(item.tenantId)
@@ -154,11 +168,12 @@ import PurchaseForm from "../components/PurchaseForm.vue";
 import CategoryLabel from "../components/CategoryLabel.vue";
 import CategorySelect from "../components/CategorySelect.vue";
 import { categoryMap } from "../utils/categories";
+import { PAYMENT_METHODS, paymentMethodLabel } from "../utils/payment";
 import type { PurchaseFormValues } from "../schemas/purchaseSchema";
 import { useCurrency } from "../composables/useCurrency";
 import { useConfirmStore } from "../stores/confirm";
 import { formatDateBR } from "../utils/date";
-import type { Category, CreditCard, Purchase, Tenant } from "../types/domain";
+import type { Category, CreditCard, PaymentMethod, Purchase, Tenant } from "../types/domain";
 
 const { toCurrencyBRL, toApiMoney } = useCurrency();
 const confirm = useConfirmStore();
@@ -174,7 +189,8 @@ const filters = reactive<{
   creditCardId: string | null;
   tenantId: string | null;
   categoryId: string | null;
-}>({ creditCardId: null, tenantId: null, categoryId: null });
+  paymentMethod: PaymentMethod | null;
+}>({ creditCardId: null, tenantId: null, categoryId: null, paymentMethod: null });
 const { items, total, loading, options, onOptions, reload } = usePagedList<Purchase>(
   "/purchases",
   () => ({ ...filters })
@@ -183,7 +199,7 @@ const { items, total, loading, options, onOptions, reload } = usePagedList<Purch
 const headers = [
   { title: "Descrição", key: "description" },
   { title: "Data", key: "purchaseDate" },
-  { title: "Cartão", key: "card" },
+  { title: "Pagamento", key: "card" },
   { title: "Responsável", key: "tenant" },
   {
     title: "Categoria",
@@ -205,13 +221,15 @@ function tenantName(tenantId: string) {
 }
 
 const hasFilters = computed(
-  () => !!(filters.creditCardId || filters.tenantId || filters.categoryId)
+  () =>
+    !!(filters.creditCardId || filters.tenantId || filters.categoryId || filters.paymentMethod)
 );
 
 function clearFilters() {
   filters.creditCardId = null;
   filters.tenantId = null;
   filters.categoryId = null;
+  filters.paymentMethod = null;
 }
 
 function openNew() {
@@ -239,9 +257,11 @@ async function fetchLookups() {
 async function save(values: PurchaseFormValues) {
   saving.value = true;
   try {
-    const isInstallment = !!values.isInstallment;
+    const isCard = values.paymentMethod === "card";
+    const isInstallment = isCard && !!values.isInstallment;
     const body = {
-      creditCardId: values.creditCardId,
+      paymentMethod: values.paymentMethod,
+      creditCardId: isCard ? values.creditCardId : null,
       tenantId: values.tenantId,
       categoryId: values.categoryId || null,
       description: values.description.trim(),
