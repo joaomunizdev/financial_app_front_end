@@ -36,9 +36,19 @@ async function mountPage() {
   return { wrapper, vm: wrapper.vm as unknown as PageVm };
 }
 
+// GET /categories: a page per scope (tables) or the full array (duplicate check).
+function serve(list: Category[]) {
+  http.get.mockImplementation(async (_url: string, config?: { params?: { scope?: string } }) => {
+    const scope = config?.params?.scope;
+    if (!scope) return { data: list };
+    const items = list.filter((c) => c.isDefault === (scope === "default"));
+    return { data: { items, total: items.length, page: 1, pageSize: 10 } };
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  http.get.mockResolvedValue({ data: categories });
+  serve(categories);
   http.post.mockResolvedValue({ data: {} });
   http.patch.mockResolvedValue({ data: {} });
 });
@@ -54,10 +64,20 @@ describe("CategoriesPage", () => {
   });
 
   it("invites to create a category when the user has none of their own", async () => {
-    http.get.mockResolvedValue({ data: [categories[0]] });
+    serve([categories[0]]);
     const { wrapper } = await mountPage();
     expect(wrapper.text()).toContain("Crie categorias do seu jeito");
     expect(wrapper.text()).toContain("Lazer");
+  });
+
+  it("loads each table from the server with its scope", async () => {
+    await mountPage();
+    expect(http.get).toHaveBeenCalledWith("/categories", {
+      params: { page: 1, pageSize: 10, scope: "own" },
+    });
+    expect(http.get).toHaveBeenCalledWith("/categories", {
+      params: { page: 1, pageSize: 10, scope: "default" },
+    });
   });
 
   it("refuses a name already used by a default category, ignoring case", async () => {

@@ -213,6 +213,7 @@ import {
 import type {
   CategoryTotal,
   CreditCard,
+  Page,
   Purchase,
   Statement,
   Tenant,
@@ -321,12 +322,13 @@ async function fetchDashboard() {
       http.get<CreditCard[]>("/credit-cards"),
       http.get<Tenant[]>("/tenants"),
       http.get<Statement[]>("/statements"),
-      http.get<Purchase[]>("/purchases"),
+      // Only the count matters (onboarding): one page carries the total.
+      http.get<Page<Purchase>>("/purchases", { params: { page: 1, pageSize: 1 } }),
     ]);
     cards.value = cardRes.data || [];
     tenants.value = tenantRes.data || [];
     statements.value = Array.isArray(statementRes.data) ? statementRes.data : [];
-    purchaseCount.value = (purchaseRes.data || []).length;
+    purchaseCount.value = purchaseRes.data?.total ?? 0;
     loaded.value = true;
   } finally {
     loading.value = false;

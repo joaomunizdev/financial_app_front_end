@@ -18,12 +18,17 @@
 
     <v-card>
       <h2 class="section-title px-6 pt-5">Suas categorias</h2>
-      <v-data-table
-        :items="ownItems"
+      <v-data-table-server
+        :items="own.items.value"
+        :items-length="own.total.value"
         :headers="ownHeaders"
-        :loading="loading"
-        :hide-default-footer="ownItems.length <= 10"
+        :loading="own.loading.value"
+        :page="own.options.value.page"
+        :items-per-page="own.options.value.itemsPerPage"
+        :sort-by="own.options.value.sortBy"
+        :hide-default-footer="own.total.value <= 10"
         class="pa-2"
+        @update:options="own.onOptions"
       >
         <template #item.name="{ item }">
           <CategoryLabel :category="item" />
@@ -60,7 +65,7 @@
             @action="openNew"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-card>
@@ -68,13 +73,16 @@
       <p class="text-body-2 text-medium-emphasis px-6">
         Disponíveis em todas as contas. Não podem ser alteradas.
       </p>
-      <v-data-table
-        :items="defaultItems"
+      <v-data-table-server
+        :items="defaults.items.value"
+        :items-length="defaults.total.value"
         :headers="defaultHeaders"
-        :loading="loading"
-        :items-per-page="-1"
-        hide-default-footer
+        :loading="defaults.loading.value"
+        :page="defaults.options.value.page"
+        :items-per-page="defaults.options.value.itemsPerPage"
+        :sort-by="defaults.options.value.sortBy"
         class="pa-2"
+        @update:options="defaults.onOptions"
       >
         <template #item.name="{ item }">
           <CategoryLabel :category="item" />
@@ -89,7 +97,7 @@
             @action="search = ''"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="open" max-width="520">
@@ -137,7 +145,8 @@ import EmptyState from "../components/EmptyState.vue";
 import CategoryLabel from "../components/CategoryLabel.vue";
 import emptyCategories from "../assets/empty/empty-categories.webp";
 import emptySearch from "../assets/empty/empty-search.webp";
-import { ref, reactive, onMounted, computed, watch } from "vue";
+import { ref, reactive, onMounted, watch } from "vue";
+import { useDebounced, usePagedList } from "../composables/usePagedList";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useFormErrors } from "../composables/useFormErrors";
@@ -147,12 +156,21 @@ import type { Category } from "../types/domain";
 
 const confirm = useConfirmStore();
 
-const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 
 const search = ref("");
-const items = ref<Category[]>([]);
+const searchTerm = useDebounced(search);
+const own = usePagedList<Category>("/categories", () => ({
+  scope: "own",
+  search: searchTerm.value.trim(),
+}));
+const defaults = usePagedList<Category>("/categories", () => ({
+  scope: "default",
+  search: searchTerm.value.trim(),
+}));
+// Every category name (all pages), for the duplicate-name check.
+const allCategories = ref<Category[]>([]);
 const ownHeaders = [
   { title: "Nome", key: "name" },
   { title: "", key: "actions", align: "end" as const, sortable: false },
@@ -174,7 +192,7 @@ const schema = yup.object({
       "unique",
       "Já existe uma categoria com esse nome",
       (v) =>
-        !items.value.some(
+        !allCategories.value.some(
           (c) => c.id !== form.id && c.name.toLowerCase() === (v ?? "").trim().toLowerCase()
         )
     ),
@@ -202,22 +220,12 @@ watch(open, (v) => {
   }
 });
 
-const filtered = computed(() => {
-  if (!search.value) return items.value;
-  const term = search.value.toLowerCase();
-  return items.value.filter((x) => x.name.toLowerCase().includes(term));
-});
-const ownItems = computed(() => filtered.value.filter((c) => !c.isDefault));
-const defaultItems = computed(() => filtered.value.filter((c) => c.isDefault));
+async function fetchAllNames() {
+  allCategories.value = (await http.get<Category[]>("/categories")).data || [];
+}
 
-async function fetchAll() {
-  loading.value = true;
-  try {
-    const { data } = await http.get<Category[]>("/categories");
-    items.value = data || [];
-  } finally {
-    loading.value = false;
-  }
+async function refresh() {
+  await Promise.all([own.reload(), fetchAllNames()]);
 }
 
 async function save() {
@@ -228,7 +236,7 @@ async function save() {
     if (form.id) await http.patch(`/categories/${form.id}`, body);
     else await http.post("/categories", body);
     open.value = false;
-    await fetchAll();
+    await refresh();
   } finally {
     saving.value = false;
   }
@@ -241,10 +249,10 @@ async function remove(it: Category) {
   });
   if (!confirmed) return;
   await http.delete(`/categories/${it.id}`);
-  await fetchAll();
+  await refresh();
 }
 
-onMounted(fetchAll);
+onMounted(fetchAllNames);
 </script>
 
 <style scoped>

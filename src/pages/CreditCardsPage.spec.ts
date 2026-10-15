@@ -49,7 +49,7 @@ async function mountPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  http.get.mockResolvedValue({ data: [card] });
+  http.get.mockResolvedValue({ data: { items: [card], total: 1, page: 1, pageSize: 10 } });
   http.delete.mockResolvedValue({});
   http.patch.mockResolvedValue({});
 });
@@ -71,7 +71,9 @@ describe("CreditCardsPage", () => {
     useConfirmStore().answer(true);
     await pending;
     expect(http.delete).toHaveBeenCalledWith("/credit-cards/c1");
-    expect(http.get).toHaveBeenCalledWith("/credit-cards");
+    expect(http.get).toHaveBeenCalledWith("/credit-cards", {
+      params: { page: 1, pageSize: 10 },
+    });
   });
 
   it("sends the limit as a 2-decimal string", async () => {

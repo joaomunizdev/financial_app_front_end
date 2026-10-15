@@ -13,10 +13,15 @@
         placeholder="Buscar por nome"
         prepend-inner-icon="mdi-magnify"
       />
-      <v-data-table
-        :items="filtered"
+      <v-data-table-server
+        :items="items"
         :headers="headers"
         :loading="loading"
+        :items-length="total"
+        :page="options.page"
+        :items-per-page="options.itemsPerPage"
+        :sort-by="options.sortBy"
+        @update:options="onOptions"
         class="pa-2"
       >
         <template #item.actions="{ item }">
@@ -51,7 +56,7 @@
             @action="openNew"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="open" max-width="480">
@@ -84,7 +89,8 @@ import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import emptyTenants from "../assets/empty/empty-tenants.webp";
 import emptySearch from "../assets/empty/empty-search.webp";
-import { ref, reactive, onMounted, computed, watch } from "vue";
+import { ref, reactive, watch } from "vue";
+import { useDebounced, usePagedList } from "../composables/usePagedList";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useFormErrors } from "../composables/useFormErrors";
@@ -93,12 +99,15 @@ import type { Tenant } from "../types/domain";
 
 const confirm = useConfirmStore();
 
-const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 
 const search = ref("");
-const items = ref<Tenant[]>([]);
+const searchTerm = useDebounced(search);
+const { items, total, loading, options, onOptions, reload } = usePagedList<Tenant>(
+  "/tenants",
+  () => ({ search: searchTerm.value.trim() })
+);
 const headers = [
   { title: "Nome", key: "name" },
   { title: "", key: "actions", align: "end" as const, sortable: false },
@@ -146,22 +155,6 @@ watch(open, (v) => {
   }
 });
 
-const filtered = computed(() => {
-  if (!search.value) return items.value;
-  const term = search.value.toLowerCase();
-  return items.value.filter((x) => x.name?.toLowerCase().includes(term));
-});
-
-async function fetchAll() {
-  loading.value = true;
-  try {
-    const { data } = await http.get<Tenant[]>("/tenants");
-    items.value = data || [];
-  } finally {
-    loading.value = false;
-  }
-}
-
 async function save() {
   saving.value = true;
   try {
@@ -172,7 +165,7 @@ async function save() {
     else await http.post("/tenants", body);
 
     open.value = false;
-    await fetchAll();
+    await reload();
   } finally {
     saving.value = false;
   }
@@ -185,8 +178,7 @@ async function remove(it: Tenant) {
   });
   if (!confirmed) return;
   await http.delete(`/tenants/${it.id}`);
-  await fetchAll();
+  await reload();
 }
 
-onMounted(fetchAll);
 </script>

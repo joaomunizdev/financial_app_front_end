@@ -20,10 +20,15 @@
     />
 
     <v-card>
-      <v-data-table
+      <v-data-table-server
         :items="items"
         :headers="headers"
         :loading="loading"
+        :items-length="total"
+        :page="options.page"
+        :items-per-page="options.itemsPerPage"
+        :sort-by="options.sortBy"
+        @update:options="onOptions"
         class="pa-2"
       >
         <template #item.period="{ item }">{{
@@ -107,7 +112,7 @@
             @action="openGenerateDialog"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="generateDlg.open" max-width="620">
@@ -284,8 +289,8 @@ import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import emptyStatements from "../assets/empty/empty-statements.webp";
 import { ref, onMounted, computed, reactive } from "vue";
+import { usePagedList } from "../composables/usePagedList";
 import * as yup from "yup";
-import { isAxiosError } from "axios";
 import http from "../plugins/http";
 import PeriodFilterBar from "../components/PeriodFilterBar.vue";
 import { useCurrency } from "../composables/useCurrency";
@@ -320,12 +325,17 @@ const creditCards = ref<CreditCard[]>([]);
 const categories = ref<Category[]>([]);
 const categoriesById = computed(() => categoryMap(categories.value));
 const creditCardId = ref<string>("");
-const items = ref<Statement[]>([]);
-const loading = ref(false);
 
 const now = new Date();
 const year = ref(now.getFullYear());
 const month = ref(now.getMonth() + 1);
+
+// Filters in effect: the bar's fields only apply on "Buscar" (or after generating).
+const applied = reactive({ year: year.value, month: month.value, creditCardId: "" });
+const { items, total, loading, options, onOptions, reload } = usePagedList<Statement>(
+  "/statements",
+  () => ({ ...applied })
+);
 
 const headers = [
   { title: "Período", key: "period" },
@@ -342,44 +352,16 @@ function cardNickname(cardId: string) {
   return creditCards.value.find((c) => c.id === cardId)?.nickname ?? "—";
 }
 
-/**
- * With card + year + month the API returns a single statement or 404 when it doesn't exist;
- * otherwise it returns a list. Both are normalized to an array.
- */
-async function fetchStatements(params: {
-  year: number;
-  month: number;
-  creditCardId?: string;
-}): Promise<Statement[]> {
-  try {
-    const { data } = await http.get<Statement[] | Statement>("/statements", {
-      params,
-      skipToast: true,
-    });
-    if (!data) return [];
-    return Array.isArray(data) ? data : [data];
-  } catch (e) {
-    if (isAxiosError(e) && e.response?.status === 404) return [];
-    toast.show({
-      color: "error",
-      message: withDetail("Não foi possível carregar as faturas.", e),
-    });
-    throw e;
-  }
-}
-
 async function load() {
   if (!isValidYear(year.value)) return;
-  loading.value = true;
-  try {
-    items.value = await fetchStatements({
-      year: year.value,
-      month: month.value,
-      ...(creditCardId.value ? { creditCardId: creditCardId.value } : {}),
-    });
-  } finally {
-    loading.value = false;
-  }
+  const next = { year: year.value, month: month.value, creditCardId: creditCardId.value };
+  const unchanged =
+    next.year === applied.year &&
+    next.month === applied.month &&
+    next.creditCardId === applied.creditCardId;
+  // A change of filters reloads from page 1 (usePagedList watches them).
+  if (unchanged) await reload();
+  else Object.assign(applied, next);
 }
 
 async function clearFilters() {
@@ -469,14 +451,12 @@ async function generate() {
       });
     }
 
-    const lists = await Promise.all(
-      generateDlg.creditCardIds.flatMap((cardId) =>
-        generateDlg.months.map((m) =>
-          fetchStatements({ creditCardId: cardId, year: targetYear, month: m })
-        )
-      )
-    );
-    items.value = lists.flat();
+    // Show the generated period: the (first) generated month, and the card when only one.
+    year.value = targetYear;
+    month.value = Math.min(...generateDlg.months);
+    creditCardId.value =
+      generateDlg.creditCardIds.length === 1 ? generateDlg.creditCardIds[0] : "";
+    await load();
     generateDlg.open = false;
   } finally {
     generateDlg.saving = false;
@@ -667,6 +647,5 @@ onMounted(async () => {
   ]);
   creditCards.value = cards.data || [];
   categories.value = cats.data || [];
-  await load();
 });
 </script>

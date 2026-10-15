@@ -56,12 +56,16 @@
       >
     </v-sheet>
     <v-card>
-      <v-data-table
+      <v-data-table-server
         :headers="headers"
-        :items="filteredItems"
+        :items="items"
+        :items-length="total"
         :loading="loading"
-        :search="search"
+        :page="options.page"
+        :items-per-page="options.itemsPerPage"
+        :sort-by="options.sortBy"
         class="pa-2"
+        @update:options="onOptions"
       >
         <template #item.amount="{ item }">
           {{ toCurrencyBRL(item.amount) }}
@@ -122,7 +126,7 @@
             @action="openCreate"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="open" max-width="640">
@@ -187,6 +191,7 @@ import { categoryMap } from "../utils/categories";
 import emptySubscriptions from "../assets/empty/empty-subscriptions.webp";
 import emptySearch from "../assets/empty/empty-search.webp";
 import { ref, reactive, computed, onMounted, watch } from "vue";
+import { useDebounced, usePagedList } from "../composables/usePagedList";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useCurrency } from "../composables/useCurrency";
@@ -204,11 +209,9 @@ import type {
 const { toCurrencyBRL, formatCurrencyOnType, toApiMoney } = useCurrency();
 const confirm = useConfirmStore();
 
-const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 
-const items = ref<Subscription[]>([]);
 const cards = ref<CreditCard[]>([]);
 const tenants = ref<Tenant[]>([]);
 const categories = ref<Category[]>([]);
@@ -287,16 +290,16 @@ function cardNickname(cardId: string) {
   return cards.value.find((c) => c.id === cardId)?.nickname ?? "—";
 }
 
-const filteredItems = computed(() => {
-  let data = [...items.value];
-  if (filterCardId.value)
-    data = data.filter((i) => i.creditCardId === filterCardId.value);
-  if (filterActive.value !== null)
-    data = data.filter((i) => i.active === filterActive.value);
-  if (filterCategoryId.value)
-    data = data.filter((i) => i.categoryId === filterCategoryId.value);
-  return data;
-});
+const searchTerm = useDebounced(search);
+const { items, total, loading, options, onOptions, reload } = usePagedList<Subscription>(
+  "/subscriptions",
+  () => ({
+    search: searchTerm.value.trim(),
+    creditCardId: filterCardId.value,
+    categoryId: filterCategoryId.value,
+    status: filterActive.value === null ? null : filterActive.value ? "active" : "inactive",
+  })
+);
 
 const hasFilters = computed(
   () =>
@@ -347,22 +350,16 @@ watch(open, (v) => {
   if (!v) clearErrors();
 });
 
-async function fetchAll() {
-  loading.value = true;
-  try {
-    const [subs, cc, tn, cat] = await Promise.all([
-      http.get<Subscription[]>("/subscriptions"),
-      http.get<CreditCard[]>("/credit-cards"),
-      http.get<Tenant[]>("/tenants"),
-      http.get<Category[]>("/categories"),
-    ]);
-    categories.value = cat.data || [];
-    items.value = subs.data || [];
-    cards.value = cc.data || [];
-    tenants.value = tn.data || [];
-  } finally {
-    loading.value = false;
-  }
+// Options for the filters, the form and the card/tenant/category columns.
+async function fetchLookups() {
+  const [cc, tn, cat] = await Promise.all([
+    http.get<CreditCard[]>("/credit-cards"),
+    http.get<Tenant[]>("/tenants"),
+    http.get<Category[]>("/categories"),
+  ]);
+  categories.value = cat.data || [];
+  cards.value = cc.data || [];
+  tenants.value = tn.data || [];
 }
 
 async function save() {
@@ -381,7 +378,7 @@ async function save() {
     if (form.id) await http.patch(`/subscriptions/${form.id}`, payload);
     else await http.post("/subscriptions", payload);
     open.value = false;
-    await fetchAll();
+    await reload();
   } finally {
     saving.value = false;
   }
@@ -394,8 +391,8 @@ async function remove(it: Subscription) {
   });
   if (!confirmed) return;
   await http.delete(`/subscriptions/${it.id}`);
-  await fetchAll();
+  await reload();
 }
 
-onMounted(fetchAll);
+onMounted(fetchLookups);
 </script>

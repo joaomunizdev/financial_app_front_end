@@ -7,12 +7,20 @@
       <v-btn prepend-icon="mdi-plus" @click="openNew">Nova despesa fixa</v-btn>
     </PageHeader>
     <v-card>
-      <v-data-table
+      <v-data-table-server
         :items="items"
         :headers="headers"
         :loading="loading"
+        :items-length="total"
+        :page="options.page"
+        :items-per-page="options.itemsPerPage"
+        :sort-by="options.sortBy"
+        @update:options="onOptions"
         class="pa-2"
       >
+        <template #item.tenantName="{ item }">
+          {{ item.tenant?.name ?? "—" }}
+        </template>
         <template #item.amount="{ item }">
           {{ toCurrencyBRL(item.amount) }}
         </template>
@@ -38,7 +46,7 @@
             @action="openNew"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="open" max-width="520" :key="dialogKey">
@@ -85,6 +93,7 @@ import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import emptyExpenses from "../assets/empty/empty-expenses.webp";
 import { ref, reactive, onMounted, watch } from "vue";
+import { usePagedList } from "../composables/usePagedList";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useCurrency } from "../composables/useCurrency";
@@ -96,14 +105,13 @@ import type { FixedExpense, Tenant } from "../types/domain";
 const { toCurrencyBRL, formatCurrencyOnType, toApiMoney } = useCurrency();
 const confirm = useConfirmStore();
 
-const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 const dialogKey = ref(0);
 
-type FixedExpenseRow = FixedExpense & { tenantName: string };
-
-const items = ref<FixedExpenseRow[]>([]);
+const { items, total, loading, options, onOptions, reload } = usePagedList<FixedExpense>(
+  "/fixed-expenses"
+);
 const tenants = ref<Tenant[]>([]);
 const headers = [
   { title: "Responsável", key: "tenantName" },
@@ -154,7 +162,7 @@ function openNew() {
   open.value = true;
 }
 
-function edit(it: FixedExpenseRow) {
+function edit(it: FixedExpense) {
   Object.assign(form, {
     id: it.id,
     tenantId: it.tenantId ?? it.tenant?.id ?? "",
@@ -177,21 +185,8 @@ function onCancel() {
   open.value = false;
 }
 
-async function fetchAll() {
-  loading.value = true;
-  try {
-    const [fixedExpensesRes, tenantsRes] = await Promise.all([
-      http.get<FixedExpense[]>("/fixed-expenses"),
-      http.get<Tenant[]>("/tenants"),
-    ]);
-    items.value = (fixedExpensesRes.data || []).map((item) => ({
-      ...item,
-      tenantName: item.tenant?.name ?? "—",
-    }));
-    tenants.value = tenantsRes.data || [];
-  } finally {
-    loading.value = false;
-  }
+async function fetchTenants() {
+  tenants.value = (await http.get<Tenant[]>("/tenants")).data || [];
 }
 
 async function save() {
@@ -209,21 +204,21 @@ async function save() {
     else await http.post("/fixed-expenses", body);
 
     open.value = false;
-    await fetchAll();
+    await reload();
   } finally {
     saving.value = false;
   }
 }
 
-async function remove(it: FixedExpenseRow) {
+async function remove(it: FixedExpense) {
   const confirmed = await confirm.ask({
     title: "Excluir despesa fixa",
     message: `Deseja excluir a despesa "${it.description}"? Essa ação não pode ser desfeita.`,
   });
   if (!confirmed) return;
   await http.delete(`/fixed-expenses/${it.id}`);
-  await fetchAll();
+  await reload();
 }
 
-onMounted(fetchAll);
+onMounted(fetchTenants);
 </script>

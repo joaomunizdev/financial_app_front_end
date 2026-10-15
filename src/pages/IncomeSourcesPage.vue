@@ -7,12 +7,20 @@
       <v-btn prepend-icon="mdi-plus" @click="openNew">Nova fonte de renda</v-btn>
     </PageHeader>
     <v-card>
-      <v-data-table
+      <v-data-table-server
         :items="items"
         :headers="headers"
         :loading="loading"
+        :items-length="total"
+        :page="options.page"
+        :items-per-page="options.itemsPerPage"
+        :sort-by="options.sortBy"
+        @update:options="onOptions"
         class="pa-2"
       >
+        <template #item.tenantName="{ item }">
+          {{ item.tenant?.name ?? "—" }}
+        </template>
         <template #item.amount="{ item }">
           {{ toCurrencyBRL(item.amount) }}
         </template>
@@ -41,7 +49,7 @@
             @action="openNew"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="open" max-width="520" :key="dialogKey">
@@ -96,6 +104,7 @@ import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import emptyIncome from "../assets/empty/empty-income.webp";
 import { ref, reactive, onMounted, watch } from "vue";
+import { usePagedList } from "../composables/usePagedList";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useCurrency } from "../composables/useCurrency";
@@ -112,14 +121,13 @@ import type {
 const { toCurrencyBRL, formatCurrencyOnType, toApiMoney } = useCurrency();
 const confirm = useConfirmStore();
 
-const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 const dialogKey = ref(0);
 
-type IncomeSourceRow = IncomeSource & { tenantName: string };
-
-const items = ref<IncomeSourceRow[]>([]);
+const { items, total, loading, options, onOptions, reload } = usePagedList<IncomeSource>(
+  "/income-sources"
+);
 const tenants = ref<Tenant[]>([]);
 const incomeTypes: SelectOption<IncomeType>[] = [
   { label: "Fixa", value: "fixed" },
@@ -182,7 +190,7 @@ function openNew() {
   open.value = true;
 }
 
-function edit(it: IncomeSourceRow) {
+function edit(it: IncomeSource) {
   Object.assign(form, {
     id: it.id,
     tenantId: it.tenantId ?? it.tenant?.id ?? "",
@@ -210,21 +218,8 @@ function incomeTypeLabel(value: string) {
   return incomeTypes.find((type) => type.value === value)?.label ?? "—";
 }
 
-async function fetchAll() {
-  loading.value = true;
-  try {
-    const [incomeSourcesRes, tenantsRes] = await Promise.all([
-      http.get<IncomeSource[]>("/income-sources"),
-      http.get<Tenant[]>("/tenants"),
-    ]);
-    items.value = (incomeSourcesRes.data || []).map((item) => ({
-      ...item,
-      tenantName: item.tenant?.name ?? "—",
-    }));
-    tenants.value = tenantsRes.data || [];
-  } finally {
-    loading.value = false;
-  }
+async function fetchTenants() {
+  tenants.value = (await http.get<Tenant[]>("/tenants")).data || [];
 }
 
 async function save() {
@@ -243,21 +238,21 @@ async function save() {
     else await http.post("/income-sources", body);
 
     open.value = false;
-    await fetchAll();
+    await reload();
   } finally {
     saving.value = false;
   }
 }
 
-async function remove(it: IncomeSourceRow) {
+async function remove(it: IncomeSource) {
   const confirmed = await confirm.ask({
     title: "Excluir fonte de renda",
     message: `Deseja excluir a fonte de renda "${it.description}"? Essa ação não pode ser desfeita.`,
   });
   if (!confirmed) return;
   await http.delete(`/income-sources/${it.id}`);
-  await fetchAll();
+  await reload();
 }
 
-onMounted(fetchAll);
+onMounted(fetchTenants);
 </script>
