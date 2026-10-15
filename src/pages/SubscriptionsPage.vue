@@ -41,6 +41,12 @@
         prepend-inner-icon="mdi-toggle-switch-outline"
         style="min-width: 180px"
       />
+      <CategorySelect
+        v-model="filterCategoryId"
+        :categories="categories"
+        hide-details
+        style="min-width: 220px"
+      />
       <v-spacer />
       <v-btn
         variant="text"
@@ -50,12 +56,16 @@
       >
     </v-sheet>
     <v-card>
-      <v-data-table
+      <v-data-table-server
         :headers="headers"
-        :items="filteredItems"
+        :items="items"
+        :items-length="total"
         :loading="loading"
-        :search="search"
+        :page="options.page"
+        :items-per-page="options.itemsPerPage"
+        :sort-by="options.sortBy"
         class="pa-2"
+        @update:options="onOptions"
       >
         <template #item.amount="{ item }">
           {{ toCurrencyBRL(item.amount) }}
@@ -77,6 +87,10 @@
 
         <template #item.tenant="{ item }">
           {{ tenantName(item.tenantId) }}
+        </template>
+
+        <template #item.category="{ item }">
+          <CategoryLabel :category="categoriesById.get(item.categoryId ?? '')" />
         </template>
 
         <template #item.actions="{ item }">
@@ -112,7 +126,7 @@
             @action="openCreate"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="open" max-width="640">
@@ -146,6 +160,7 @@
               maxlength="180"
               :error-messages="errors.description"
             />
+            <CategorySelect v-model="form.categoryId" :categories="categories" />
             <v-text-field
               v-model="form.amount"
               label="Valor (BRL)"
@@ -170,9 +185,13 @@
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
+import CategoryLabel from "../components/CategoryLabel.vue";
+import CategorySelect from "../components/CategorySelect.vue";
+import { categoryMap } from "../utils/categories";
 import emptySubscriptions from "../assets/empty/empty-subscriptions.webp";
 import emptySearch from "../assets/empty/empty-search.webp";
 import { ref, reactive, computed, onMounted, watch } from "vue";
+import { useDebounced, usePagedList } from "../composables/usePagedList";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useCurrency } from "../composables/useCurrency";
@@ -180,6 +199,7 @@ import { useFormErrors } from "../composables/useFormErrors";
 import { moneyField } from "../schemas/money";
 import { useConfirmStore } from "../stores/confirm";
 import type {
+  Category,
   CreditCard,
   SelectOption,
   Subscription,
@@ -189,14 +209,15 @@ import type {
 const { toCurrencyBRL, formatCurrencyOnType, toApiMoney } = useCurrency();
 const confirm = useConfirmStore();
 
-const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 
-const items = ref<Subscription[]>([]);
 const cards = ref<CreditCard[]>([]);
 const tenants = ref<Tenant[]>([]);
+const categories = ref<Category[]>([]);
+const categoriesById = computed(() => categoryMap(categories.value));
 const search = ref("");
+const filterCategoryId = ref<string | null>(null);
 const filterCardId = ref<string | null>(null);
 const filterActive = ref<boolean | null>(null);
 const activeOptions: SelectOption<boolean | null>[] = [
@@ -210,6 +231,11 @@ const headers = [
   { title: "Valor", key: "amount", align: "end" as const },
   { title: "Cartão", key: "card" },
   { title: "Responsável", key: "tenant" },
+  {
+    title: "Categoria",
+    key: "category",
+    value: (s: Subscription) => categoriesById.value.get(s.categoryId ?? "")?.name ?? "",
+  },
   { title: "Status", key: "active", align: "center" as const },
   { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
@@ -218,6 +244,7 @@ type FormT = {
   id: string;
   creditCardId: string;
   tenantId: string;
+  categoryId: string | null;
   description: string;
   amount: string;
   active: boolean;
@@ -227,6 +254,7 @@ const form = reactive<FormT>({
   id: "",
   creditCardId: "",
   tenantId: "",
+  categoryId: null,
   description: "",
   amount: "",
   active: true,
@@ -262,23 +290,30 @@ function cardNickname(cardId: string) {
   return cards.value.find((c) => c.id === cardId)?.nickname ?? "—";
 }
 
-const filteredItems = computed(() => {
-  let data = [...items.value];
-  if (filterCardId.value)
-    data = data.filter((i) => i.creditCardId === filterCardId.value);
-  if (filterActive.value !== null)
-    data = data.filter((i) => i.active === filterActive.value);
-  return data;
-});
+const searchTerm = useDebounced(search);
+const { items, total, loading, options, onOptions, reload } = usePagedList<Subscription>(
+  "/subscriptions",
+  () => ({
+    search: searchTerm.value.trim(),
+    creditCardId: filterCardId.value,
+    categoryId: filterCategoryId.value,
+    status: filterActive.value === null ? null : filterActive.value ? "active" : "inactive",
+  })
+);
 
 const hasFilters = computed(
-  () => !!search.value || !!filterCardId.value || filterActive.value !== null
+  () =>
+    !!search.value ||
+    !!filterCardId.value ||
+    filterActive.value !== null ||
+    !!filterCategoryId.value
 );
 
 function clearFilters() {
   search.value = "";
   filterCardId.value = null;
   filterActive.value = null;
+  filterCategoryId.value = null;
 }
 
 function openCreate() {
@@ -286,6 +321,9 @@ function openCreate() {
     id: "",
     creditCardId: cards.value[0]?.id ?? "",
     tenantId: tenants.value[0]?.id ?? "",
+    // Most recurring charges are subscriptions; the user can change it.
+    categoryId:
+      categories.value.find((c) => c.isDefault && c.name === "Assinaturas")?.id ?? null,
     description: "",
     amount: "",
     active: true,
@@ -299,6 +337,7 @@ function openEdit(it: Subscription) {
     id: it.id,
     creditCardId: it.creditCardId,
     tenantId: it.tenantId ?? "",
+    categoryId: it.categoryId ?? null,
     description: it.description ?? "",
     amount: toCurrencyBRL(it.amount ?? "0"),
     active: it.active,
@@ -311,20 +350,16 @@ watch(open, (v) => {
   if (!v) clearErrors();
 });
 
-async function fetchAll() {
-  loading.value = true;
-  try {
-    const [subs, cc, tn] = await Promise.all([
-      http.get<Subscription[]>("/subscriptions"),
-      http.get<CreditCard[]>("/credit-cards"),
-      http.get<Tenant[]>("/tenants"),
-    ]);
-    items.value = subs.data || [];
-    cards.value = cc.data || [];
-    tenants.value = tn.data || [];
-  } finally {
-    loading.value = false;
-  }
+// Options for the filters, the form and the card/tenant/category columns.
+async function fetchLookups() {
+  const [cc, tn, cat] = await Promise.all([
+    http.get<CreditCard[]>("/credit-cards"),
+    http.get<Tenant[]>("/tenants"),
+    http.get<Category[]>("/categories"),
+  ]);
+  categories.value = cat.data || [];
+  cards.value = cc.data || [];
+  tenants.value = tn.data || [];
 }
 
 async function save() {
@@ -335,6 +370,7 @@ async function save() {
     const payload = {
       creditCardId: form.creditCardId,
       tenantId: form.tenantId,
+      categoryId: form.categoryId,
       description: form.description.trim(),
       amount: toApiMoney(form.amount),
       active: form.active,
@@ -342,7 +378,7 @@ async function save() {
     if (form.id) await http.patch(`/subscriptions/${form.id}`, payload);
     else await http.post("/subscriptions", payload);
     open.value = false;
-    await fetchAll();
+    await reload();
   } finally {
     saving.value = false;
   }
@@ -355,8 +391,8 @@ async function remove(it: Subscription) {
   });
   if (!confirmed) return;
   await http.delete(`/subscriptions/${it.id}`);
-  await fetchAll();
+  await reload();
 }
 
-onMounted(fetchAll);
+onMounted(fetchLookups);
 </script>

@@ -49,7 +49,8 @@ function share(v: number) {
 <style scoped>
 .bar-row {
   display: grid;
-  grid-template-columns: minmax(80px, 140px) 1fr auto;
+  /* Fixed value column so every track ends at the same x. */
+  grid-template-columns: minmax(72px, min(140px, 28%)) minmax(40px, 1fr) 136px;
   align-items: center;
   gap: 12px;
   padding: 5px 0;

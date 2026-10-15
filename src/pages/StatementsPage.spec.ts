@@ -47,7 +47,10 @@ async function mountPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   http.get.mockImplementation(async (url: string) => ({
-    data: url === "/statements" ? [openStatement] : [],
+    data:
+      url === "/statements"
+        ? { items: [openStatement], total: 1, page: 1, pageSize: 10 }
+        : [],
   }));
   http.patch.mockResolvedValue({ data: { ...openStatement, locked: true } });
   http.post.mockResolvedValue({ data: {} });

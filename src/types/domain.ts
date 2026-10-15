@@ -1,3 +1,5 @@
+import type { CardBrand } from "../utils/cardBrands";
+
 /** BRL amount as a decimal string with up to 2 decimals, e.g. "1500.00" (backend `IsMoney`). */
 export type Money = string;
 
@@ -15,17 +17,41 @@ export type CardType = "credit" | "debit";
 export interface CreditCard {
   id: string;
   nickname: string;
-  brand: string;
+  brand: CardBrand;
   last4: string;
   limitAmount: Money | null;
   cardType: CardType;
   active: boolean;
 }
 
+/** Expense category: defaults shared by every account (read-only) plus the user's own. */
+export interface Category {
+  id: string;
+  name: string;
+  /** Material Design Icons class, e.g. "mdi-silverware-fork-knife". */
+  icon: string;
+  isDefault: boolean;
+}
+
+/** `GET /reports/by-category` row: statement items of a month per category. */
+export interface CategoryTotal {
+  /** null = uncategorized items. */
+  categoryId: string | null;
+  name: string | null;
+  icon: string | null;
+  totalAmount: Money;
+}
+
+/** Card purchases go to the card's statements; Pix and cash are one-time and card-less. */
+export type PaymentMethod = "card" | "pix" | "cash";
+
 export interface Purchase {
   id: string;
-  creditCardId: string;
+  paymentMethod: PaymentMethod;
+  /** null for Pix and cash. */
+  creditCardId: string | null;
   tenantId: string;
+  categoryId: string | null;
   description: string;
   purchaseDate: ISODate;
   totalAmount: Money;
@@ -39,6 +65,8 @@ export interface StatementItem {
   label: string;
   amount: Money;
   installmentNumber: number | null;
+  /** Follows the purchase/subscription category, also in closed statements. */
+  categoryId: string | null;
 }
 
 export interface Statement {
@@ -60,6 +88,7 @@ export interface Subscription {
   id: string;
   creditCardId: string;
   tenantId: string | null;
+  categoryId: string | null;
   description: string;
   amount: Money;
   active: boolean;
@@ -88,6 +117,57 @@ export interface TenantReport {
   tenantId: string;
   tenantName: string;
   reportExpensesTotal: Money;
+}
+
+export type InvestmentType =
+  | "fixed_income"
+  | "stocks"
+  | "real_estate_funds"
+  | "funds"
+  | "crypto"
+  | "pension"
+  | "other";
+
+/** `GET /investments` row; values computed by the backend. */
+export interface Investment {
+  id: string;
+  name: string;
+  type: InvestmentType;
+  institution: string | null;
+  /** Value today: last balance update + later contributions − withdrawals. */
+  currentValue: Money;
+  /** Contributions − withdrawals (all time). */
+  investedTotal: Money;
+  lastMovementDate: ISODate | null;
+}
+
+/** contribution/withdrawal move money; balance records the value reported on a date. */
+export type MovementKind = "contribution" | "withdrawal" | "balance";
+
+export interface InvestmentMovement {
+  id: string;
+  investmentId: string;
+  kind: MovementKind;
+  amount: Money;
+  date: ISODate;
+}
+
+/** `GET /reports/investments?year&month`. */
+export interface InvestmentsSummary {
+  totalValue: Money;
+  contributions: Money;
+  withdrawals: Money;
+  investmentsCount: number;
+  history: { year: number; month: number; value: Money }[];
+  byType: { type: InvestmentType; value: Money }[];
+}
+
+/** List endpoints called with `page` return one page plus the total count. */
+export interface Page<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface SelectOption<T> {

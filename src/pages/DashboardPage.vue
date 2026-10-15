@@ -95,13 +95,19 @@
 
     <div class="analytics-grid">
         <v-card class="pa-5 h-100">
-          <div class="mb-4">
-            <h2 class="section-title">Gastos por cartão</h2>
-            <p class="text-caption text-medium-emphasis">
-              Total das faturas em {{ selected.label.toLowerCase() }}
-            </p>
+          <div class="d-flex align-start justify-space-between ga-4 mb-4">
+            <div>
+              <h2 class="section-title">Onde você mais gastou</h2>
+              <p class="text-caption text-medium-emphasis">
+                Gastos por categoria em {{ selected.label.toLowerCase() }}
+              </p>
+            </div>
+            <v-btn id="link-all-categories" variant="text" size="small" to="/categories">
+              Ver todas as categorias
+            </v-btn>
           </div>
-          <BarList :items="byCard" list-label="Gastos por cartão no período">
+          <v-progress-linear v-if="categoriesLoading" indeterminate color="primary" />
+          <BarList v-else :items="byCategory" :list-label="`Gastos por categoria em ${selected.label.toLowerCase()}`">
             <template #empty>
               Nenhuma fatura gerada para este período.
               <router-link id="link-dashboard-statements" to="/statements" class="text-primary">
@@ -114,12 +120,18 @@
           <div class="mb-2">
             <h2 class="section-title">Gastos por mês</h2>
             <p class="text-caption text-medium-emphasis">
-              Últimos 6 meses, pelo total das faturas
+              Últimos 6 meses: faturas e compras no Pix ou em dinheiro
             </p>
           </div>
           <MonthlySpendingChart :months="months" />
         </v-card>
     </div>
+
+    <InvestmentsOverview
+      :summary="investments"
+      :month-name="selectedMonthName"
+      :loading="investmentsLoading"
+    />
 
     <section>
       <div class="d-flex align-center justify-space-between mb-3">
@@ -189,22 +201,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import http from "../plugins/http";
 import PageHeader from "../components/PageHeader.vue";
 import BarList from "../components/BarList.vue";
 import MonthlySpendingChart from "../components/MonthlySpendingChart.vue";
+import InvestmentsOverview from "../components/InvestmentsOverview.vue";
 import { useCurrency } from "../composables/useCurrency";
 import onboardingImage from "../assets/empty/onboarding.webp";
 import {
   greeting,
   monthlyTotals,
+  monthsRange,
   onboardingSteps,
   percentChange,
   periodOptions,
-  totalsByCard,
+  topCategories,
 } from "../utils/dashboard";
-import type { CreditCard, Purchase, Statement, Tenant } from "../types/domain";
+import type {
+  CategoryTotal,
+  CreditCard,
+  InvestmentsSummary,
+  Page,
+  Purchase,
+  Statement,
+  Tenant,
+} from "../types/domain";
 
 const { toCurrencyBRL } = useCurrency();
 
@@ -257,11 +279,67 @@ const selected = computed(
 );
 
 const months = computed(() =>
-  monthlyTotals(statements.value, selected.value.year, selected.value.month)
+  monthlyTotals(
+    statements.value,
+    selected.value.year,
+    selected.value.month,
+    6,
+    directPurchases.value
+  )
 );
-const byCard = computed(() =>
-  totalsByCard(statements.value, cards.value, selected.value.year, selected.value.month)
+const categoryTotals = ref<CategoryTotal[]>([]);
+const categoriesLoading = ref(false);
+const byCategory = computed(() => topCategories(categoryTotals.value));
+
+async function fetchCategoryTotals() {
+  categoriesLoading.value = true;
+  try {
+    const { year, month } = selected.value;
+    const { data } = await http.get<CategoryTotal[]>("/reports/by-category", {
+      params: { year, month },
+    });
+    categoryTotals.value = data || [];
+  } finally {
+    categoriesLoading.value = false;
+  }
+}
+// Pix/cash purchases have no statement: they're added to the months by date.
+const directPurchases = ref<Purchase[]>([]);
+async function fetchDirectPurchases() {
+  const range = monthsRange(selected.value.year, selected.value.month, 6);
+  const [pix, cash] = await Promise.all(
+    (["pix", "cash"] as const).map((paymentMethod) =>
+      http.get<Purchase[]>("/purchases", { params: { ...range, paymentMethod } })
+    )
+  );
+  directPurchases.value = [...(pix.data || []), ...(cash.data || [])];
+}
+
+// Investments: value at the end of the selected month, its contributions, history and mix.
+const investments = ref<InvestmentsSummary | null>(null);
+const investmentsLoading = ref(false);
+const selectedMonthName = computed(() =>
+  new Date(selected.value.year, selected.value.month - 1, 1).toLocaleString("pt-BR", {
+    month: "long",
+  })
 );
+async function fetchInvestments() {
+  investmentsLoading.value = true;
+  try {
+    const { year, month } = selected.value;
+    investments.value = (
+      await http.get<InvestmentsSummary>("/reports/investments", { params: { year, month } })
+    ).data;
+  } finally {
+    investmentsLoading.value = false;
+  }
+}
+
+watch(period, () => {
+  fetchCategoryTotals();
+  fetchDirectPurchases();
+  fetchInvestments();
+});
 
 const totalLimit = computed(() =>
   cards.value
@@ -295,19 +373,25 @@ async function fetchDashboard() {
       http.get<CreditCard[]>("/credit-cards"),
       http.get<Tenant[]>("/tenants"),
       http.get<Statement[]>("/statements"),
-      http.get<Purchase[]>("/purchases"),
+      // Only the count matters (onboarding): one page carries the total.
+      http.get<Page<Purchase>>("/purchases", { params: { page: 1, pageSize: 1 } }),
     ]);
     cards.value = cardRes.data || [];
     tenants.value = tenantRes.data || [];
     statements.value = Array.isArray(statementRes.data) ? statementRes.data : [];
-    purchaseCount.value = (purchaseRes.data || []).length;
+    purchaseCount.value = purchaseRes.data?.total ?? 0;
     loaded.value = true;
   } finally {
     loading.value = false;
   }
 }
 
-onMounted(fetchDashboard);
+onMounted(() => {
+  fetchDashboard();
+  fetchCategoryTotals();
+  fetchDirectPurchases();
+  fetchInvestments();
+});
 </script>
 
 <style scoped>
@@ -410,7 +494,7 @@ onMounted(fetchDashboard);
 
 .analytics-grid {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 24px;
 }
 @media (max-width: 1280px) {

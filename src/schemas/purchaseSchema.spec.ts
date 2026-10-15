@@ -23,6 +23,12 @@ async function errorPaths(values: object) {
 }
 
 describe("purchaseSchema", () => {
+  it("requires a card only for card purchases", async () => {
+    expect(await errorPaths({ ...valid, creditCardId: "" })).toEqual(["creditCardId"]);
+    expect(await errorPaths({ ...valid, paymentMethod: "pix", creditCardId: null })).toEqual([]);
+    expect(await errorPaths({ ...valid, paymentMethod: "boleto" })).toEqual(["paymentMethod"]);
+  });
+
   it("accepts a one-time purchase", async () => {
     expect(await errorPaths(valid)).toEqual([]);
   });

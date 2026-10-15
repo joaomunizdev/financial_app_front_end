@@ -63,12 +63,20 @@ export const vuetify = createVuetify({
       color: "primary",
     },
     VSelect: { variant: "outlined", density: "compact", color: "primary" },
+    VAutocomplete: { variant: "outlined", density: "compact", color: "primary" },
     VBtn: { rounded: "lg", color: "primary", variant: "flat" },
     VCard: { variant: "flat", border: true },
     VDataTable: {
       density: "comfortable",
       hover: true,
       // Row actions are quiet: neutral icons unless a page asks for a color.
+      VBtn: { color: "default" },
+    },
+    // Server-paginated lists (usePagedList): same look, API page sizes (max 100).
+    VDataTableServer: {
+      density: "comfortable",
+      hover: true,
+      itemsPerPageOptions: [10, 25, 50, 100],
       VBtn: { color: "default" },
     },
     VAlert: { variant: "tonal" },

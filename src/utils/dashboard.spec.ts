@@ -2,20 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   greeting,
   monthlyTotals,
+  monthsRange,
   onboardingSteps,
   percentChange,
   periodOptions,
-  totalsByCard,
+  topCategories,
 } from "./dashboard";
-import type { CreditCard, Statement } from "../types/domain";
+import type { CategoryTotal, Statement } from "../types/domain";
 
 const st = (creditCardId: string, year: number, month: number, totalAmount: string) =>
   ({ id: `${creditCardId}-${year}-${month}`, creditCardId, year, month, totalAmount }) as Statement;
-
-const cards = [
-  { id: "a", nickname: "Principal" },
-  { id: "b", nickname: "Viagem" },
-] as CreditCard[];
 
 const statements = [
   st("a", 2026, 10, "1000.50"),
@@ -35,18 +31,53 @@ describe("dashboard utils", () => {
     expect(months[5].label).toBe("out");
   });
 
+  it("adds Pix/cash purchases to the month of their date", () => {
+    const direct = [
+      { purchaseDate: "2026-10-03", totalAmount: "49.25" },
+      { purchaseDate: "2026-09-30", totalAmount: "10.00" },
+      { purchaseDate: "2025-01-01", totalAmount: "999.00" },
+    ];
+    const months = monthlyTotals(statements, 2026, 10, 6, direct);
+    expect(months.map((m) => m.total)).toEqual([0, 0, 0, 0, 810, 1300]);
+  });
+
+  it("covers whole months in the purchase date range", () => {
+    expect(monthsRange(2026, 2, 6)).toEqual({ dateStart: "2025-09-01", dateEnd: "2026-02-28" });
+    expect(monthsRange(2024, 2, 1)).toEqual({ dateStart: "2024-02-01", dateEnd: "2024-02-29" });
+  });
+
   it("crosses year boundaries", () => {
     const months = monthlyTotals(statements, 2026, 2, 3);
     expect(months.map((m) => `${m.month}/${m.year}`)).toEqual(["12/2025", "1/2026", "2/2026"]);
     expect(months[0].total).toBe(300);
   });
 
-  it("ranks the month's totals by card, largest first", () => {
-    expect(totalsByCard(statements, cards, 2026, 10)).toEqual([
-      { id: "a", label: "Principal", total: 1000.5 },
-      { id: "b", label: "Viagem", total: 250.25 },
+  it("keeps the largest categories and groups the rest into Outros", () => {
+    const cat = (categoryId: string | null, name: string | null, totalAmount: string): CategoryTotal => ({
+      categoryId,
+      name,
+      icon: null,
+      totalAmount,
+    });
+    const rows = [
+      cat("c1", "Alimentação", "500.00"),
+      cat("c2", "Casa", "300.00"),
+      cat("c3", "Lazer", "100.10"),
+      cat("c4", "Outros", "50.00"),
+      cat(null, null, "20.20"),
+      cat("c5", "Saúde", "10.00"),
+    ];
+    expect(topCategories(rows, 3)).toEqual([
+      { id: "c1", label: "Alimentação", total: 500 },
+      { id: "c2", label: "Casa", total: 300 },
+      { id: "c3", label: "Lazer", total: 100.1 },
+      { id: "others", label: "Outros", total: 80.2 },
     ]);
-    expect(totalsByCard(statements, cards, 2026, 1)).toEqual([]);
+    expect(topCategories(rows.slice(0, 2))).toEqual([
+      { id: "c1", label: "Alimentação", total: 500 },
+      { id: "c2", label: "Casa", total: 300 },
+    ]);
+    expect(topCategories([])).toEqual([]);
   });
 
   it("computes the change against the previous month", () => {

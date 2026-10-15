@@ -76,6 +76,16 @@ const routes: RouteRecordRaw[] = [
     meta: { auth: true },
   },
   {
+    path: "/investments",
+    component: () => import("../pages/InvestmentsPage.vue"),
+    meta: { auth: true },
+  },
+  {
+    path: "/categories",
+    component: () => import("../pages/CategoriesPage.vue"),
+    meta: { auth: true },
+  },
+  {
     path: "/:pathMatch(.*)*",
     component: () => import("../pages/NotFoundPage.vue"),
     meta: { auth: true },

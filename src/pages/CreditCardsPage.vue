@@ -7,10 +7,15 @@
       <v-btn prepend-icon="mdi-plus" @click="openNew">Novo cartão</v-btn>
     </PageHeader>
     <v-card>
-      <v-data-table
+      <v-data-table-server
         :items="items"
         :headers="headers"
         :loading="loading"
+        :items-length="total"
+        :page="options.page"
+        :items-per-page="options.itemsPerPage"
+        :sort-by="options.sortBy"
+        @update:options="onOptions"
         class="pa-2"
       >
         <template #item.cardType="{ item }">
@@ -47,7 +52,7 @@
             @action="openNew"
           />
         </template>
-      </v-data-table>
+      </v-data-table-server>
     </v-card>
 
     <v-dialog v-model="open" max-width="520" :key="dialogKey">
@@ -63,10 +68,10 @@
               maxlength="80"
               :error-messages="errors.nickname"
             />
-            <v-text-field
+            <v-select
               v-model="form.brand"
+              :items="CARD_BRANDS"
               label="Bandeira"
-              maxlength="50"
               :error-messages="errors.brand"
             />
             <v-text-field
@@ -112,7 +117,9 @@
 import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import emptyCards from "../assets/empty/empty-cards.webp";
-import { ref, reactive, onMounted, watch } from "vue";
+import { ref, reactive, watch } from "vue";
+import { CARD_BRANDS, type CardBrand } from "../utils/cardBrands";
+import { usePagedList } from "../composables/usePagedList";
 import http from "../plugins/http";
 import * as yup from "yup";
 import { useCurrency } from "../composables/useCurrency";
@@ -125,12 +132,13 @@ const { toCurrencyBRL, digitsOnly, formatCurrencyOnType, toApiMoney } =
   useCurrency();
 const confirm = useConfirmStore();
 
-const loading = ref(false);
 const saving = ref(false);
 const open = ref(false);
 const dialogKey = ref(0);
 
-const items = ref<CreditCard[]>([]);
+const { items, total, loading, options, onOptions, reload } = usePagedList<CreditCard>(
+  "/credit-cards"
+);
 const cardTypes: SelectOption<CardType>[] = [
   { label: "Crédito", value: "credit" },
   { label: "Débito", value: "debit" },
@@ -155,7 +163,7 @@ function onLimitInput(val: string) {
 type FormT = {
   id: string;
   nickname: string;
-  brand: string;
+  brand: CardBrand | null;
   last4: string;
   limitAmount: string;
   cardType: CardType;
@@ -164,7 +172,7 @@ type FormT = {
 const emptyForm = (): FormT => ({
   id: "",
   nickname: "",
-  brand: "",
+  brand: null,
   last4: "",
   limitAmount: "",
   cardType: "credit",
@@ -183,9 +191,8 @@ const schema = yup.object({
     .max(80, "Máximo de 80 caracteres"),
   brand: yup
     .string()
-    .trim()
     .required("Bandeira é obrigatória")
-    .max(50, "Máximo de 50 caracteres"),
+    .oneOf([...CARD_BRANDS], "Escolha uma bandeira da lista"),
   last4: yup
     .string()
     .required("Final é obrigatório")
@@ -217,7 +224,7 @@ function edit(it: CreditCard) {
   Object.assign(form, {
     id: it.id,
     nickname: it.nickname ?? "",
-    brand: it.brand ?? "",
+    brand: it.brand ?? null,
     last4: digitsOnly(String(it.last4 ?? ""), 4),
     limitAmount: toCurrencyBRL(it.limitAmount ?? "0"),
     cardType: it.cardType ?? "credit",
@@ -237,16 +244,6 @@ watch(open, (val) => {
 
 function onCancel() {
   open.value = false;
-}
-
-async function fetchAll() {
-  loading.value = true;
-  try {
-    const { data } = await http.get<CreditCard[]>("/credit-cards");
-    items.value = data || [];
-  } finally {
-    loading.value = false;
-  }
 }
 
 async function save() {
@@ -269,7 +266,7 @@ async function save() {
     const isCredit = form.cardType === "credit";
     const body = {
       nickname: form.nickname.trim(),
-      brand: form.brand.trim(),
+      brand: form.brand,
       last4: form.last4,
       cardType: form.cardType,
       limitAmount: isCredit ? toApiMoney(form.limitAmount) : null,
@@ -279,7 +276,7 @@ async function save() {
     else await http.post("/credit-cards", body);
 
     open.value = false;
-    await fetchAll();
+    await reload();
   } finally {
     saving.value = false;
   }
@@ -292,8 +289,7 @@ async function remove(it: CreditCard) {
   });
   if (!confirmed) return;
   await http.delete(`/credit-cards/${it.id}`);
-  await fetchAll();
+  await reload();
 }
 
-onMounted(fetchAll);
 </script>
