@@ -5,12 +5,7 @@
         <div class="auth-theme-switch">
           <ThemeSwitcher />
         </div>
-        <div class="auth-layout px-4">
-          <AppLogo class="mb-2" />
-          <p class="text-body-2 text-medium-emphasis text-center mb-6">
-            Centralize seus cartões, controle compras e acompanhe faturas em um
-            só lugar.
-          </p>
+        <div class="auth-layout">
           <router-view />
         </div>
       </v-main>
@@ -290,12 +285,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 .auth-layout {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  max-width: 480px;
-  margin: 0 auto;
-  padding-block: 48px;
+  padding: 48px 16px;
 }
 .auth-theme-switch {
   position: fixed;
