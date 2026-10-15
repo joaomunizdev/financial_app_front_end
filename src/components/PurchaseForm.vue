@@ -41,12 +41,16 @@
     />
 
     <v-switch
+      v-if="!isDebitCard"
       v-model="isInstallment"
       inset
       label="Parcelada?"
       class="mt-2"
       color="primary"
     />
+    <div v-else class="text-body-2 text-medium-emphasis mt-2 mb-4">
+      Cartão de débito: a compra é registrada à vista.
+    </div>
     <div v-if="isInstallment" class="d-flex ga-4">
       <v-text-field
         type="number"
@@ -134,6 +138,20 @@ watch(totalAmount, (newNumericValue) => {
 const submit = handleSubmit((values) => {
   emit("submit", { ...values, id: props.modelValue?.id });
 });
+
+// Debit cards don't accept installments (the API rejects them).
+const isDebitCard = computed(
+  () =>
+    props.creditCards.find((c) => c.id === creditCardId.value)?.cardType ===
+    "debit"
+);
+watch(
+  isDebitCard,
+  (debit) => {
+    if (debit) isInstallment.value = false;
+  },
+  { immediate: true }
+);
 
 const submitText = computed(() => (props.modelValue?.id ? "Salvar" : "Criar"));
 </script>

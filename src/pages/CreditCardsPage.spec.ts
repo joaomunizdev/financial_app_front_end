@@ -19,14 +19,22 @@ const card = {
   brand: "Visa",
   last4: "1234",
   limitAmount: "5000.00",
+  cardType: "credit" as const,
   active: true,
 };
 
 type PageVm = {
   remove: (c: typeof card) => Promise<void>;
+  openNew: () => void;
   edit: (c: typeof card) => void;
   save: () => Promise<void>;
-  form: { limitAmount: string };
+  form: {
+    nickname: string;
+    brand: string;
+    last4: string;
+    limitAmount: string;
+    cardType: "credit" | "debit";
+  };
 };
 
 async function mountPage() {
@@ -75,7 +83,51 @@ describe("CreditCardsPage", () => {
       nickname: "Principal",
       brand: "Visa",
       last4: "1234",
+      cardType: "credit",
       limitAmount: "1234.50",
     });
+  });
+
+  it("creates a debit card without a limit", async () => {
+    http.post.mockResolvedValue({});
+    const { vm } = await mountPage();
+    vm.openNew();
+    Object.assign(vm.form, {
+      nickname: "Conta",
+      brand: "Elo",
+      last4: "9999",
+      cardType: "debit",
+      limitAmount: "",
+    });
+    await vm.save();
+    expect(http.post).toHaveBeenCalledWith("/credit-cards", {
+      nickname: "Conta",
+      brand: "Elo",
+      last4: "9999",
+      cardType: "debit",
+      limitAmount: null,
+    });
+  });
+
+  it("asks before converting a credit card to debit", async () => {
+    const { vm } = await mountPage();
+    vm.edit(card);
+    vm.form.cardType = "debit";
+
+    let pending = vm.save();
+    await flushPromises();
+    expect(useConfirmStore().title).toBe("Mudar para cartão de débito");
+    useConfirmStore().answer(false);
+    await pending;
+    expect(http.patch).not.toHaveBeenCalled();
+
+    pending = vm.save();
+    await flushPromises();
+    useConfirmStore().answer(true);
+    await pending;
+    expect(http.patch).toHaveBeenCalledWith(
+      "/credit-cards/c1",
+      expect.objectContaining({ cardType: "debit", limitAmount: null })
+    );
   });
 });

@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createVuetify } from "vuetify";
 import PurchaseForm from "./PurchaseForm.vue";
-import type { Purchase } from "../types/domain";
+import type { CreditCard, Purchase } from "../types/domain";
 import type { PurchaseFormValues } from "../schemas/purchaseSchema";
 
-const cards = [
-  { id: "c1", nickname: "Visa", brand: "Visa", last4: "1234", limitAmount: "1000.00", active: true },
+const cards: CreditCard[] = [
+  { id: "c1", nickname: "Visa", brand: "Visa", last4: "1234", limitAmount: "1000.00", cardType: "credit", active: true },
+  { id: "d1", nickname: "Conta", brand: "Elo", last4: "9999", limitAmount: null, cardType: "debit", active: true },
 ];
 const tenants = [{ id: "t1", name: "Ana" }];
 
@@ -67,6 +68,16 @@ describe("PurchaseForm", () => {
     expect(text).toContain("O cartão é obrigatório.");
     expect(text).toContain("O responsável é obrigatório.");
     expect(text).toContain("A descrição é obrigatória.");
+  });
+
+  it("hides installments and submits a one-time purchase for a debit card", async () => {
+    const wrapper = mountForm({ ...purchase, creditCardId: "d1" });
+    expect(wrapper.text()).not.toContain("Parcelada?");
+    expect(wrapper.text()).toContain("Cartão de débito");
+
+    await submit(wrapper);
+    const values = wrapper.emitted("submit")![0][0] as PurchaseFormValues;
+    expect(values).toMatchObject({ creditCardId: "d1", isInstallment: false });
   });
 
   it("defaults the date of a new purchase to the local day", () => {

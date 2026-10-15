@@ -245,6 +245,8 @@ Credit limit
 Active status
 ```
 
+Cards are either credit or debit. Debit cards have no limit and do not accept installment purchases; changing a credit card to debit converts its installment purchases into one purchase per month (the backend keeps statement totals unchanged).
+
 Cards are later used when registering purchases, subscriptions, and generating statements.
 
 ## Purchases
