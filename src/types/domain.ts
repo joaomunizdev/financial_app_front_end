@@ -1,3 +1,5 @@
+import type { CardBrand } from "../utils/cardBrands";
+
 /** BRL amount as a decimal string with up to 2 decimals, e.g. "1500.00" (backend `IsMoney`). */
 export type Money = string;
 
@@ -15,7 +17,7 @@ export type CardType = "credit" | "debit";
 export interface CreditCard {
   id: string;
   nickname: string;
-  brand: string;
+  brand: CardBrand;
   last4: string;
   limitAmount: Money | null;
   cardType: CardType;

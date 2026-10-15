@@ -111,6 +111,16 @@ describe("CreditCardsPage", () => {
     });
   });
 
+  it("only accepts a brand from the list of real brands", async () => {
+    const { vm } = await mountPage();
+    vm.edit({ ...card, brand: "Sem/B" as typeof card.brand });
+    await vm.save();
+    expect(http.patch).not.toHaveBeenCalled();
+    expect((vm as unknown as { errors: { brand: string[] } }).errors.brand).toEqual([
+      "Escolha uma bandeira da lista",
+    ]);
+  });
+
   it("asks before converting a credit card to debit", async () => {
     const { vm } = await mountPage();
     vm.edit(card);

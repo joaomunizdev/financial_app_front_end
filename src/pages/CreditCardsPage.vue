@@ -68,10 +68,10 @@
               maxlength="80"
               :error-messages="errors.nickname"
             />
-            <v-text-field
+            <v-select
               v-model="form.brand"
+              :items="CARD_BRANDS"
               label="Bandeira"
-              maxlength="50"
               :error-messages="errors.brand"
             />
             <v-text-field
@@ -118,6 +118,7 @@ import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import emptyCards from "../assets/empty/empty-cards.webp";
 import { ref, reactive, watch } from "vue";
+import { CARD_BRANDS, type CardBrand } from "../utils/cardBrands";
 import { usePagedList } from "../composables/usePagedList";
 import http from "../plugins/http";
 import * as yup from "yup";
@@ -162,7 +163,7 @@ function onLimitInput(val: string) {
 type FormT = {
   id: string;
   nickname: string;
-  brand: string;
+  brand: CardBrand | null;
   last4: string;
   limitAmount: string;
   cardType: CardType;
@@ -171,7 +172,7 @@ type FormT = {
 const emptyForm = (): FormT => ({
   id: "",
   nickname: "",
-  brand: "",
+  brand: null,
   last4: "",
   limitAmount: "",
   cardType: "credit",
@@ -190,9 +191,8 @@ const schema = yup.object({
     .max(80, "Máximo de 80 caracteres"),
   brand: yup
     .string()
-    .trim()
     .required("Bandeira é obrigatória")
-    .max(50, "Máximo de 50 caracteres"),
+    .oneOf([...CARD_BRANDS], "Escolha uma bandeira da lista"),
   last4: yup
     .string()
     .required("Final é obrigatório")
@@ -224,7 +224,7 @@ function edit(it: CreditCard) {
   Object.assign(form, {
     id: it.id,
     nickname: it.nickname ?? "",
-    brand: it.brand ?? "",
+    brand: it.brand ?? null,
     last4: digitsOnly(String(it.last4 ?? ""), 4),
     limitAmount: toCurrencyBRL(it.limitAmount ?? "0"),
     cardType: it.cardType ?? "credit",
@@ -266,7 +266,7 @@ async function save() {
     const isCredit = form.cardType === "credit";
     const body = {
       nickname: form.nickname.trim(),
-      brand: form.brand.trim(),
+      brand: form.brand,
       last4: form.last4,
       cardType: form.cardType,
       limitAmount: isCredit ? toApiMoney(form.limitAmount) : null,
