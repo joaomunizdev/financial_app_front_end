@@ -127,6 +127,12 @@
         </v-card>
     </div>
 
+    <InvestmentsOverview
+      :summary="investments"
+      :month-name="selectedMonthName"
+      :loading="investmentsLoading"
+    />
+
     <section>
       <div class="d-flex align-center justify-space-between mb-3">
         <h2 class="section-title">Seus cartões</h2>
@@ -200,6 +206,7 @@ import http from "../plugins/http";
 import PageHeader from "../components/PageHeader.vue";
 import BarList from "../components/BarList.vue";
 import MonthlySpendingChart from "../components/MonthlySpendingChart.vue";
+import InvestmentsOverview from "../components/InvestmentsOverview.vue";
 import { useCurrency } from "../composables/useCurrency";
 import onboardingImage from "../assets/empty/onboarding.webp";
 import {
@@ -214,6 +221,7 @@ import {
 import type {
   CategoryTotal,
   CreditCard,
+  InvestmentsSummary,
   Page,
   Purchase,
   Statement,
@@ -307,9 +315,30 @@ async function fetchDirectPurchases() {
   directPurchases.value = [...(pix.data || []), ...(cash.data || [])];
 }
 
+// Investments: value at the end of the selected month, its contributions, history and mix.
+const investments = ref<InvestmentsSummary | null>(null);
+const investmentsLoading = ref(false);
+const selectedMonthName = computed(() =>
+  new Date(selected.value.year, selected.value.month - 1, 1).toLocaleString("pt-BR", {
+    month: "long",
+  })
+);
+async function fetchInvestments() {
+  investmentsLoading.value = true;
+  try {
+    const { year, month } = selected.value;
+    investments.value = (
+      await http.get<InvestmentsSummary>("/reports/investments", { params: { year, month } })
+    ).data;
+  } finally {
+    investmentsLoading.value = false;
+  }
+}
+
 watch(period, () => {
   fetchCategoryTotals();
   fetchDirectPurchases();
+  fetchInvestments();
 });
 
 const totalLimit = computed(() =>
@@ -361,6 +390,7 @@ onMounted(() => {
   fetchDashboard();
   fetchCategoryTotals();
   fetchDirectPurchases();
+  fetchInvestments();
 });
 </script>
 
