@@ -10,6 +10,16 @@ export type MonthTotal = {
   total: number;
 };
 
+/** One headline number of a SummaryStrip. */
+export type SummaryItem = {
+  label: string;
+  value: string;
+  icon: string;
+  hint?: string;
+  /** Colors the value for signed results (e.g. balance). */
+  tone?: "positive" | "negative";
+};
+
 export type LabeledTotal = { id: string; label: string; total: number };
 
 function shortMonth(year: number, month: number): string {
