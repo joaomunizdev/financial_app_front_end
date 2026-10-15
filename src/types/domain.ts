@@ -175,6 +175,50 @@ export interface InvestmentsSummary {
   byType: { type: InvestmentType; value: Money }[];
 }
 
+export type ImportKind = "statement" | "invoice";
+export type ImportAction = "purchase" | "income" | "ignore";
+export type ImportReason =
+  | "card_payment"
+  | "own_transfer"
+  | "investment"
+  | "loan"
+  | "invoice_credit"
+  | "credit_card_pix"
+  | "already_imported"
+  | "possible_duplicate";
+
+/** One line of `POST /imports/preview` (nothing is saved yet). */
+export interface ImportPreviewLine {
+  /** Stable key of the line; re-importing it is skipped. */
+  key: string;
+  /** For installments, the original purchase date. */
+  date: ISODate;
+  description: string;
+  /** Positive; per installment when `installment` is set. */
+  amount: Money;
+  direction: "debit" | "credit";
+  installment: { number: number; total: number } | null;
+  suggestedAction: ImportAction;
+  reason: ImportReason | null;
+  /** Description of the record this line seems to duplicate. */
+  duplicateOf: string | null;
+  categoryId: string | null;
+}
+
+export interface ImportPreview {
+  kind: ImportKind;
+  bank: string;
+  bankName: string;
+  format: "ofx" | "csv" | "pdf";
+  period: { from: ISODate; to: ISODate } | null;
+  /** Total of charges printed on the invoice, when the bank prints one. */
+  expectedTotal: Money | null;
+  /** Total of the charges read from the file. */
+  readTotal: Money;
+  warnings: string[];
+  lines: ImportPreviewLine[];
+}
+
 /** List endpoints called with `page` return one page plus the total count. */
 export interface Page<T> {
   items: T[];
