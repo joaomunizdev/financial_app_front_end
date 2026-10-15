@@ -112,6 +112,14 @@ export interface TenantReport {
   reportExpensesTotal: Money;
 }
 
+/** List endpoints called with `page` return one page plus the total count. */
+export interface Page<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface SelectOption<T> {
   label: string;
   value: T;

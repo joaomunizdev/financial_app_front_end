@@ -72,6 +72,13 @@ export const vuetify = createVuetify({
       // Row actions are quiet: neutral icons unless a page asks for a color.
       VBtn: { color: "default" },
     },
+    // Server-paginated lists (usePagedList): same look, API page sizes (max 100).
+    VDataTableServer: {
+      density: "comfortable",
+      hover: true,
+      itemsPerPageOptions: [10, 25, 50, 100],
+      VBtn: { color: "default" },
+    },
     VAlert: { variant: "tonal" },
     VChip: { rounded: "pill" },
   },
