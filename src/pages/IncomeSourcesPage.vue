@@ -27,6 +27,9 @@
         <template #item.incomeType="{ item }">
           {{ incomeTypeLabel(item.incomeType) }}
         </template>
+        <template #item.period="{ item }">
+          <span class="tabular-nums">{{ periodLabel(item) }}</span>
+        </template>
         <template #item.actions="{ item }">
           <v-btn icon variant="text" aria-label="Editar" @click="edit(item)"
             ><v-icon>mdi-pencil</v-icon></v-btn
@@ -88,6 +91,38 @@
               label="Tipo de renda"
               :error-messages="errors.incomeType"
             />
+            <v-text-field
+              v-if="form.incomeType === 'one_time'"
+              v-model="form.startDate"
+              label="Data de recebimento"
+              type="date"
+              prepend-inner-icon="mdi-calendar"
+              :error-messages="errors.startDate"
+            />
+            <div v-else class="d-flex flex-wrap ga-3">
+              <v-text-field
+                v-model="form.startDate"
+                label="Início"
+                type="date"
+                prepend-inner-icon="mdi-calendar"
+                hint="Opcional. Sem data, vale para todos os meses."
+                persistent-hint
+                clearable
+                :error-messages="errors.startDate"
+                style="min-width: 200px"
+              />
+              <v-text-field
+                v-model="form.endDate"
+                label="Fim"
+                type="date"
+                prepend-inner-icon="mdi-calendar"
+                hint="Opcional. Sem data, não tem fim."
+                persistent-hint
+                clearable
+                :error-messages="errors.endDate"
+                style="min-width: 200px"
+              />
+            </div>
             <v-btn type="submit" :loading="saving" class="mt-2">Salvar</v-btn>
             <v-btn variant="text" class="mt-2 ml-2" @click="onCancel"
               >Cancelar</v-btn
@@ -111,6 +146,7 @@ import { useCurrency } from "../composables/useCurrency";
 import { useFormErrors } from "../composables/useFormErrors";
 import { moneyField } from "../schemas/money";
 import { useConfirmStore } from "../stores/confirm";
+import { formatDateBR, toDateInput, todayLocalISO } from "../utils/date";
 import type {
   IncomeSource,
   IncomeType,
@@ -137,6 +173,7 @@ const headers = [
   { title: "Responsável", key: "tenantName" },
   { title: "Descrição", key: "description" },
   { title: "Tipo", key: "incomeType" },
+  { title: "Data", key: "period", sortable: false },
   { title: "Valor", key: "amount", align: "end" as const },
   { title: "", key: "actions", align: "end" as const, sortable: false },
 ];
@@ -151,6 +188,8 @@ type FormT = {
   description: string;
   amount: string;
   incomeType: IncomeType;
+  startDate: string;
+  endDate: string;
 };
 
 const emptyForm = (): FormT => ({
@@ -159,6 +198,8 @@ const emptyForm = (): FormT => ({
   description: "",
   amount: "",
   incomeType: "fixed",
+  startDate: "",
+  endDate: "",
 });
 
 const form = reactive<FormT>(emptyForm());
@@ -175,6 +216,23 @@ const schema = yup.object({
     .string()
     .oneOf(["fixed", "one_time"])
     .required("O tipo de renda é obrigatório"),
+  // One-time income needs the day it is received; fixed income dates are optional.
+  startDate: yup
+    .string()
+    .nullable()
+    .test(
+      "required-one-time",
+      "Informe a data de recebimento",
+      (v) => form.incomeType !== "one_time" || !!v
+    ),
+  endDate: yup
+    .string()
+    .nullable()
+    .test(
+      "after-start",
+      "O fim deve ser igual ou depois do início",
+      (v) => form.incomeType === "one_time" || !v || !form.startDate || v >= form.startDate
+    ),
 });
 
 const { errors, clearErrors, validateAll } = useFormErrors(schema, [
@@ -182,10 +240,13 @@ const { errors, clearErrors, validateAll } = useFormErrors(schema, [
   "description",
   "amount",
   "incomeType",
+  "startDate",
+  "endDate",
 ] as const);
 
 function openNew() {
   Object.assign(form, emptyForm());
+  form.startDate = form.incomeType === "one_time" ? todayLocalISO() : "";
   clearErrors();
   open.value = true;
 }
@@ -197,6 +258,8 @@ function edit(it: IncomeSource) {
     description: it.description ?? "",
     amount: toCurrencyBRL(it.amount ?? "0"),
     incomeType: it.incomeType ?? "fixed",
+    startDate: toDateInput(it.startDate),
+    endDate: toDateInput(it.endDate),
   });
   clearErrors();
   open.value = true;
@@ -218,6 +281,23 @@ function incomeTypeLabel(value: string) {
   return incomeTypes.find((type) => type.value === value)?.label ?? "—";
 }
 
+// One-time: the day received. Fixed: the validity window ("Sempre" when open on both ends).
+function periodLabel(it: IncomeSource) {
+  if (it.incomeType === "one_time") return it.startDate ? formatDateBR(it.startDate) : "—";
+  if (it.startDate && it.endDate) return `${formatDateBR(it.startDate)} a ${formatDateBR(it.endDate)}`;
+  if (it.startDate) return `Desde ${formatDateBR(it.startDate)}`;
+  if (it.endDate) return `Até ${formatDateBR(it.endDate)}`;
+  return "Sempre";
+}
+
+// A one-time income always has a date: suggest today when switching to it.
+watch(
+  () => form.incomeType,
+  (type) => {
+    if (type === "one_time" && !form.startDate) form.startDate = todayLocalISO();
+  }
+);
+
 async function fetchTenants() {
   tenants.value = (await http.get<Tenant[]>("/tenants")).data || [];
 }
@@ -232,6 +312,8 @@ async function save() {
       description: form.description.trim(),
       amount: toApiMoney(form.amount),
       incomeType: form.incomeType,
+      startDate: form.startDate || null,
+      endDate: form.incomeType === "fixed" ? form.endDate || null : null,
     };
 
     if (form.id) await http.patch(`/income-sources/${form.id}`, body);
