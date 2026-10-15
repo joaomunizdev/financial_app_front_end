@@ -66,6 +66,8 @@ docker compose up -d --build                         # nginx image on http://loc
 VITE_API_URL=https://api.example.com/api docker compose up -d --build   # API URL is a BUILD arg
 ```
 
+Deployment: Vercel (`vercel.json`: Vite build, SPA rewrite to `index.html`, the `nginx.conf` security headers, immutable `/assets/`); `VITE_API_URL` is set in the Vercel project and needs a redeploy when it changes; the backend's `FRONTEND_ORIGIN` must be the production domain.
+
 CI (`.github/workflows/ci.yml`): `npm ci → typecheck → test:run → build` on pushes to `main` and PRs.
 
 ## 4. Coding Conventions

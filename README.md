@@ -601,6 +601,16 @@ Stop the container:
 docker compose down
 ```
 
+## Deploying to Vercel
+
+`vercel.json` configures the Vite build, the SPA fallback (every route serves `index.html`), the security headers from `nginx.conf` and long caching for `/assets/`.
+
+1. Import this repository in Vercel (New Project). The framework, build command (`npm run build`) and output (`dist`) come from `vercel.json`.
+2. Add the environment variable `VITE_API_URL` with the backend URL, e.g. `https://financial-app-api.onrender.com/api`. It is read at build time: after changing it, redeploy.
+3. Set the backend's `FRONTEND_ORIGIN` to the production domain (e.g. `https://financial-app.vercel.app`), otherwise CORS blocks the requests. Preview deployments use other domains and are not allowed by CORS.
+
+The backend's README describes its deployment (Render + Neon + Resend).
+
 ## Backend Integration
 
 The frontend communicates with the backend through Axios.
