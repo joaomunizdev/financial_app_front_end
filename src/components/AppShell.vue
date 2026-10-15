@@ -210,6 +210,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { to: "/subscriptions", title: "Assinaturas", icon: "mdi-repeat" },
       { to: "/fixed-expenses", title: "Despesas fixas", icon: "mdi-cash-minus" },
       { to: "/income-sources", title: "Fontes de renda", icon: "mdi-cash-plus" },
+      { to: "/investments", title: "Investimentos", icon: "mdi-chart-line" },
     ],
   },
   {

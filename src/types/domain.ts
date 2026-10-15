@@ -119,6 +119,49 @@ export interface TenantReport {
   reportExpensesTotal: Money;
 }
 
+export type InvestmentType =
+  | "fixed_income"
+  | "stocks"
+  | "real_estate_funds"
+  | "funds"
+  | "crypto"
+  | "pension"
+  | "other";
+
+/** `GET /investments` row; values computed by the backend. */
+export interface Investment {
+  id: string;
+  name: string;
+  type: InvestmentType;
+  institution: string | null;
+  /** Value today: last balance update + later contributions − withdrawals. */
+  currentValue: Money;
+  /** Contributions − withdrawals (all time). */
+  investedTotal: Money;
+  lastMovementDate: ISODate | null;
+}
+
+/** contribution/withdrawal move money; balance records the value reported on a date. */
+export type MovementKind = "contribution" | "withdrawal" | "balance";
+
+export interface InvestmentMovement {
+  id: string;
+  investmentId: string;
+  kind: MovementKind;
+  amount: Money;
+  date: ISODate;
+}
+
+/** `GET /reports/investments?year&month`. */
+export interface InvestmentsSummary {
+  totalValue: Money;
+  contributions: Money;
+  withdrawals: Money;
+  investmentsCount: number;
+  history: { year: number; month: number; value: Money }[];
+  byType: { type: InvestmentType; value: Money }[];
+}
+
 /** List endpoints called with `page` return one page plus the total count. */
 export interface Page<T> {
   items: T[];

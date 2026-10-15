@@ -32,6 +32,8 @@ const ENTITY_MATCHERS: Array<{
   { matcher: /\/income-sources\b/i, entity: "Fonte de renda" },
   { matcher: /\/tenants\b/i, entity: "Responsável" },
   { matcher: /\/categories\b/i, entity: "Categoria" },
+  { matcher: /\/investments\/[^/?]+\/movements\b/i, entity: "Movimentação" },
+  { matcher: /\/investments\b/i, entity: "Investimento" },
   { matcher: /\/auth\/register\b/i, entity: "Usuário" },
   { matcher: /\/users\b/i, entity: "Usuário" },
 ];
