@@ -73,25 +73,7 @@
       </div>
     </v-card>
 
-    <v-card class="summary-strip">
-      <div v-for="stat in stats" :key="stat.label" class="summary-strip__item">
-        <span class="summary-strip__icon">
-          <v-icon size="18">{{ stat.icon }}</v-icon>
-        </span>
-        <div class="min-w-0">
-          <div class="text-caption text-medium-emphasis font-weight-medium">
-            {{ stat.label }}
-          </div>
-          <div class="summary-strip__value tabular-nums">{{ stat.value }}</div>
-          <div
-            v-if="stat.hint"
-            class="text-caption text-medium-emphasis tabular-nums"
-          >
-            {{ stat.hint }}
-          </div>
-        </div>
-      </div>
-    </v-card>
+    <SummaryStrip :items="stats" />
 
     <div class="analytics-grid">
         <v-card class="pa-5 h-100">
@@ -207,6 +189,7 @@ import PageHeader from "../components/PageHeader.vue";
 import BarList from "../components/BarList.vue";
 import MonthlySpendingChart from "../components/MonthlySpendingChart.vue";
 import InvestmentsOverview from "../components/InvestmentsOverview.vue";
+import SummaryStrip from "../components/SummaryStrip.vue";
 import { useCurrency } from "../composables/useCurrency";
 import onboardingImage from "../assets/empty/onboarding.webp";
 import {
@@ -217,6 +200,7 @@ import {
   percentChange,
   periodOptions,
   topCategories,
+  type SummaryItem,
 } from "../utils/dashboard";
 import type {
   CategoryTotal,
@@ -347,7 +331,7 @@ const totalLimit = computed(() =>
     .reduce((sum, c) => sum + Number(c.limitAmount ?? 0), 0)
 );
 
-const stats = computed(() => {
+const stats = computed((): SummaryItem[] => {
   const [prev, current] = months.value.slice(-2);
   const change = percentChange(current.total, prev.total);
   return [
@@ -398,58 +382,6 @@ onMounted(() => {
 .min-w-0 {
   min-width: 0;
 }
-.summary-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.summary-strip__item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 20px;
-}
-.summary-strip__item + .summary-strip__item {
-  border-left: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-.summary-strip__icon {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgb(var(--v-theme-surface-light));
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.summary-strip__value {
-  font-size: 26px;
-  line-height: 34px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-@media (max-width: 1100px) {
-  .summary-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .summary-strip__item:nth-child(3) {
-    border-left: 0;
-  }
-  .summary-strip__item:nth-child(n + 3) {
-    border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  }
-}
-@media (max-width: 600px) {
-  .summary-strip {
-    grid-template-columns: 1fr;
-  }
-  .summary-strip__item + .summary-strip__item {
-    border-left: 0;
-    border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  }
-}
-
 .onboarding {
   display: flex;
   gap: 24px;
