@@ -25,3 +25,23 @@ export function withDetail(base: string, error: unknown): string {
   const detail = extractApiErrorDetail(error);
   return detail ? `${base} ${detail}` : base;
 }
+
+// Known backend messages of the auth/profile flows, shown in Portuguese.
+const AUTH_MESSAGES: Record<string, string> = {
+  "Invalid or expired code": "Código inválido ou expirado. Confira o código ou peça um novo.",
+  "Login session expired, sign in again": "Sua etapa de login expirou. Entre novamente.",
+  "Email already in use": "Este e-mail já está cadastrado.",
+  "CPF already in use": "Este CPF já está cadastrado.",
+  "Invalid CPF": "CPF inválido.",
+  "Invalid birth date": "Data de nascimento inválida.",
+  "Current password is incorrect": "Senha atual incorreta.",
+  "CPF cannot be changed": "O CPF não pode ser alterado.",
+  "Email domain not allowed": "E-mail inválido.",
+};
+
+/** Portuguese message for auth/profile errors, falling back to `fallback` + API detail. */
+export function authErrorMessage(error: unknown, fallback: string): string {
+  const detail = extractApiErrorDetail(error);
+  if (detail && AUTH_MESSAGES[detail]) return AUTH_MESSAGES[detail];
+  return withDetail(fallback, error);
+}

@@ -94,3 +94,16 @@ export interface SelectOption<T> {
   label: string;
   value: T;
 }
+
+/** Signed-in user (`GET /users/me`). Profile fields are null on accounts created before they existed. */
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  cpf: string | null;
+  phone: string | null;
+  birthDate: ISODate | null;
+  emailVerified: boolean;
+  twoFactorEnabled: boolean;
+  createdAt: string;
+}
