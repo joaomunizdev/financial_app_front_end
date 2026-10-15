@@ -1,34 +1,27 @@
 <template>
-  <div class="reports-page">
-    <div class="d-flex flex-wrap align-center justify-space-between ga-2 mt-2">
-      <div>
-        <div class="text-h5">Relatórios</div>
-        <div class="text-body-2 text-medium-emphasis">
-          Filtre por mês e ano para analisar os valores consolidados.
-        </div>
-      </div>
-      <div class="reports-actions">
+  <div class="d-flex flex-column ga-6">
+    <PageHeader
+      title="Relatórios"
+      description="Totais consolidados por responsável no mês escolhido."
+    >
         <v-btn
-          color="primary"
           prepend-icon="mdi-file-pdf-box"
-          variant="flat"
           @click="openExportDialog"
         >
-          Exportar PDF Completo
+          Exportar PDF
         </v-btn>
         <v-btn
-          variant="tonal"
+          variant="outlined"
+          color="default"
           prepend-icon="mdi-refresh"
           :loading="loading"
           @click="fetchAll"
         >
           Atualizar
         </v-btn>
-      </div>
-    </div>
+    </PageHeader>
 
     <FilterBar
-      class="mt-2"
       :months="MONTHS"
       :model-value-year="year"
       :model-value-month="month"
@@ -62,7 +55,7 @@
       </v-col>
     </v-row>
 
-    <v-card class="reports-table-card">
+    <v-card>
       <v-card-title class="d-flex align-center justify-space-between">
         Totais por responsável
         <v-chip color="primary" variant="tonal" size="small">
@@ -140,6 +133,7 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
 import { computed, onMounted, reactive, ref } from "vue";
 import FilterBar from "../components/FilterBar.vue";
 import StatCard from "../components/StatCard.vue";
@@ -358,29 +352,15 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.reports-page {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
 
 .reports-stats-row {
   margin: 0;
 }
 
-.reports-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-}
 
 .reports-stats-row :deep(.v-col) {
   padding-top: 12px;
   padding-bottom: 12px;
 }
 
-.reports-table-card {
-  margin-top: 8px;
-}
 </style>

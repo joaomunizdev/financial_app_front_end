@@ -1,8 +1,9 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Faturas</div>
-    </div>
+    <PageHeader
+      title="Faturas"
+      description="Faturas mensais por cartão: gere, feche e registre os pagamentos."
+    />
 
     <PeriodFilterBar
       :cards="creditCards"
@@ -266,6 +267,7 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
 import { ref, onMounted, computed, reactive } from "vue";
 import * as yup from "yup";
 import { isAxiosError } from "axios";

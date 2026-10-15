@@ -1,13 +1,15 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Compras</div>
+    <PageHeader
+      title="Compras"
+      description="Compras à vista e parceladas lançadas nos cartões."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openNew">Nova</v-btn>
-    </div>
+    </PageHeader>
     <v-sheet
-      class="pa-3 rounded-xl d-flex flex-wrap align-center ga-3"
+      class="pa-3 d-flex flex-wrap align-center ga-3"
       color="surface"
-      elevation="1"
+      border
     >
       <v-select
         v-model="filters.creditCardId"
@@ -106,6 +108,7 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
 import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import PurchaseForm from "../components/PurchaseForm.vue";

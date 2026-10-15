@@ -1,9 +1,11 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Despesas fixas</div>
+    <PageHeader
+      title="Despesas fixas"
+      description="Gastos recorrentes que não dependem de cartão, como aluguel e contas."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openNew">Nova despesa fixa</v-btn>
-    </div>
+    </PageHeader>
     <v-card>
       <v-data-table
         :items="items"
@@ -70,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
 import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";

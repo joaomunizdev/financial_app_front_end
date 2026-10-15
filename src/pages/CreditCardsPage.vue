@@ -1,9 +1,11 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Cartões</div>
+    <PageHeader
+      title="Cartões"
+      description="Cartões de crédito e débito usados nas compras, faturas e assinaturas."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openNew">Novo cartão</v-btn>
-    </div>
+    </PageHeader>
     <v-card>
       <v-data-table
         :items="items"
@@ -98,6 +100,7 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
 import { ref, reactive, onMounted, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";

@@ -1,8 +1,8 @@
 <template>
-  <v-card class="auth-card" elevation="8">
+  <v-card class="auth-card pa-2">
     <v-card-text>
       <div class="text-center mb-6">
-        <div class="text-h5 font-weight-medium">Entrar</div>
+        <div class="text-h6 font-weight-semibold">Entrar</div>
         <div class="text-body-2 text-medium-emphasis">
           Bem-vindo de volta! Acesse sua conta.
         </div>
@@ -81,7 +81,6 @@ async function onSubmit() {
 <style scoped>
 .auth-card {
   width: min(420px, 100%);
-  border-radius: 24px;
   overflow: hidden;
 }
 </style>

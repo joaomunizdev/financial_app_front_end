@@ -1,9 +1,11 @@
 <template>
   <div class="d-flex flex-column ga-6">
-    <div class="d-flex align-center justify-space-between">
-      <div class="text-h5">Responsáveis</div>
+    <PageHeader
+      title="Responsáveis"
+      description="Pessoas ou grupos a quem os gastos e as rendas são atribuídos."
+    >
       <v-btn prepend-icon="mdi-plus" @click="openNew">Novo</v-btn>
-    </div>
+    </PageHeader>
     <v-card>
       <v-text-field
         v-model="search"
@@ -59,6 +61,7 @@
 </template>
 
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
 import { ref, reactive, onMounted, computed, watch } from "vue";
 import http from "../plugins/http";
 import * as yup from "yup";
