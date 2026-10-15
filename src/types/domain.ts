@@ -117,10 +117,19 @@ export interface IncomeSource {
   endDate: ISODate | null;
 }
 
+/** `GET /reports/by-tenant?year&month` row. */
 export interface TenantReport {
   tenantId: string;
   tenantName: string;
+  /** Statement purchases + Pix/cash purchases of the month. */
+  purchasesTotal: Money;
+  subscriptionsTotal: Money;
+  /** purchasesTotal + subscriptionsTotal. */
   reportExpensesTotal: Money;
+  fixedExpensesTotal: Money;
+  incomeSourcesTotal: Money;
+  /** income − fixed − (purchases + subscriptions). */
+  accumulatedAmount: Money;
 }
 
 export type InvestmentType =

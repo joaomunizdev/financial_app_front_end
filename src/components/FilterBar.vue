@@ -25,6 +25,9 @@
         />
       </div>
 
+      <!-- Extra filters of the page (e.g. tenant on Reports). -->
+      <slot />
+
       <div class="filter-actions">
         <v-btn
           class="filter-action"
