@@ -120,7 +120,7 @@
           <div class="mb-2">
             <h2 class="section-title">Gastos por mês</h2>
             <p class="text-caption text-medium-emphasis">
-              Últimos 6 meses, pelo total das faturas
+              Últimos 6 meses: faturas e compras no Pix ou em dinheiro
             </p>
           </div>
           <MonthlySpendingChart :months="months" />
@@ -205,6 +205,7 @@ import onboardingImage from "../assets/empty/onboarding.webp";
 import {
   greeting,
   monthlyTotals,
+  monthsRange,
   onboardingSteps,
   percentChange,
   periodOptions,
@@ -270,7 +271,13 @@ const selected = computed(
 );
 
 const months = computed(() =>
-  monthlyTotals(statements.value, selected.value.year, selected.value.month)
+  monthlyTotals(
+    statements.value,
+    selected.value.year,
+    selected.value.month,
+    6,
+    directPurchases.value
+  )
 );
 const categoryTotals = ref<CategoryTotal[]>([]);
 const categoriesLoading = ref(false);
@@ -288,7 +295,22 @@ async function fetchCategoryTotals() {
     categoriesLoading.value = false;
   }
 }
-watch(period, fetchCategoryTotals);
+// Pix/cash purchases have no statement: they're added to the months by date.
+const directPurchases = ref<Purchase[]>([]);
+async function fetchDirectPurchases() {
+  const range = monthsRange(selected.value.year, selected.value.month, 6);
+  const [pix, cash] = await Promise.all(
+    (["pix", "cash"] as const).map((paymentMethod) =>
+      http.get<Purchase[]>("/purchases", { params: { ...range, paymentMethod } })
+    )
+  );
+  directPurchases.value = [...(pix.data || []), ...(cash.data || [])];
+}
+
+watch(period, () => {
+  fetchCategoryTotals();
+  fetchDirectPurchases();
+});
 
 const totalLimit = computed(() =>
   cards.value
@@ -338,6 +360,7 @@ async function fetchDashboard() {
 onMounted(() => {
   fetchDashboard();
   fetchCategoryTotals();
+  fetchDirectPurchases();
 });
 </script>
 

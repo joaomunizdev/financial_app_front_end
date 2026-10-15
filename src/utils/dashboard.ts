@@ -1,4 +1,4 @@
-import type { CategoryTotal, Statement } from "../types/domain";
+import type { CategoryTotal, Purchase, Statement } from "../types/domain";
 
 const OTHERS = "Outros";
 
@@ -24,19 +24,23 @@ function previousMonth(year: number, month: number, back = 1) {
 }
 
 /**
- * Statement totals summed per month for the `count` months ending at year/month
- * (oldest first). Months without statements are 0.
+ * Statement totals plus Pix/cash purchases (by purchase month) summed per month
+ * for the `count` months ending at year/month (oldest first). Empty months are 0.
  */
 export function monthlyTotals(
   statements: Statement[],
   year: number,
   month: number,
-  count = 6
+  count = 6,
+  directPurchases: Pick<Purchase, "purchaseDate" | "totalAmount">[] = []
 ): MonthTotal[] {
   const sums = new Map<string, number>();
-  for (const st of statements) {
-    const key = `${st.year}-${st.month}`;
-    sums.set(key, (sums.get(key) ?? 0) + Number(st.totalAmount || 0));
+  const add = (key: string, amount: string) =>
+    sums.set(key, (sums.get(key) ?? 0) + Number(amount || 0));
+  for (const st of statements) add(`${st.year}-${st.month}`, st.totalAmount);
+  for (const p of directPurchases) {
+    const [y, m] = p.purchaseDate.split("-").map(Number);
+    add(`${y}-${m}`, p.totalAmount);
   }
   return Array.from({ length: count }, (_, i) => {
     const m = previousMonth(year, month, count - 1 - i);
@@ -72,6 +76,17 @@ export function topCategories(rows: CategoryTotal[], limit = 6): LabeledTotal[] 
 export function percentChange(current: number, previous: number): number | null {
   if (!previous) return null;
   return Math.round(((current - previous) / previous) * 100);
+}
+
+/** First and last day ("YYYY-MM-DD") of the `count` months ending at year/month. */
+export function monthsRange(year: number, month: number, count = 6) {
+  const first = previousMonth(year, month, count - 1);
+  const lastDay = new Date(year, month, 0).getDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    dateStart: `${first.year}-${pad(first.month)}-01`,
+    dateEnd: `${year}-${pad(month)}-${pad(lastDay)}`,
+  };
 }
 
 /** The last `count` months ending at year/month, newest first, as select options. */

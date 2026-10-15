@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   greeting,
   monthlyTotals,
+  monthsRange,
   onboardingSteps,
   percentChange,
   periodOptions,
@@ -28,6 +29,21 @@ describe("dashboard utils", () => {
     ]);
     expect(months.map((m) => m.total)).toEqual([0, 0, 0, 0, 800, 1250.75]);
     expect(months[5].label).toBe("out");
+  });
+
+  it("adds Pix/cash purchases to the month of their date", () => {
+    const direct = [
+      { purchaseDate: "2026-10-03", totalAmount: "49.25" },
+      { purchaseDate: "2026-09-30", totalAmount: "10.00" },
+      { purchaseDate: "2025-01-01", totalAmount: "999.00" },
+    ];
+    const months = monthlyTotals(statements, 2026, 10, 6, direct);
+    expect(months.map((m) => m.total)).toEqual([0, 0, 0, 0, 810, 1300]);
+  });
+
+  it("covers whole months in the purchase date range", () => {
+    expect(monthsRange(2026, 2, 6)).toEqual({ dateStart: "2025-09-01", dateEnd: "2026-02-28" });
+    expect(monthsRange(2024, 2, 1)).toEqual({ dateStart: "2024-02-01", dateEnd: "2024-02-29" });
   });
 
   it("crosses year boundaries", () => {
