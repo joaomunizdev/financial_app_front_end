@@ -150,7 +150,7 @@ Backend-owned rules: statement composition/totals, installment scheduling, repor
 - Responsiveness: drawer rails on `mdAndDown`; use `v-row/v-col` and `flex-wrap` sheets.
 - Empty states: `v-alert type="info" variant="tonal"` or the table `#no-data` slot.
 - Icon-only buttons need `aria-label`.
-- Login/Register use `AuthSplitLayout`: brand illustration + message on the left (hidden below 860px), form on the right. Illustrations live in `src/assets/auth/` as 960px-wide WebP (login and register each draw one of two per visit).
+- Login/Register use `AuthSplitLayout`: brand illustration + message on the left (hidden below 860px), form on the right. Illustrations live in `src/assets/auth/` as ~1070px-wide WebP (quality 90) (login and register each draw one of two per visit).
 
 ## 10. Testing and Quality
 
