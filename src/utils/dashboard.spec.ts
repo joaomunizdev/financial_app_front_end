@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   greeting,
   monthlyTotals,
+  onboardingSteps,
   percentChange,
   periodOptions,
   totalsByCard,
@@ -67,5 +68,16 @@ describe("dashboard utils", () => {
     expect(greeting(new Date(2026, 0, 1, 9))).toBe("Bom dia");
     expect(greeting(new Date(2026, 0, 1, 15))).toBe("Boa tarde");
     expect(greeting(new Date(2026, 0, 1, 21))).toBe("Boa noite");
+  });
+
+  it("marks onboarding steps done from the existing data", () => {
+    const steps = onboardingSteps({ tenants: 2, cards: 1, purchases: 0, statements: 0 });
+    expect(steps.map((s) => [s.key, s.done])).toEqual([
+      ["tenant", true],
+      ["card", true],
+      ["purchase", false],
+      ["statement", false],
+    ]);
+    expect(steps.find((s) => !s.done)?.to).toBe("/purchases");
   });
 });

@@ -20,6 +20,59 @@
 
     <v-progress-linear v-if="loading" indeterminate color="primary" rounded />
 
+    <v-card v-if="showOnboarding" class="onboarding pa-5">
+      <img :src="onboardingImage" alt="" aria-hidden="true" class="onboarding__image" />
+      <div class="onboarding__body">
+        <div class="d-flex align-start justify-space-between ga-4">
+          <div>
+            <h2 class="section-title">Primeiros passos</h2>
+            <p class="text-body-2 text-medium-emphasis">
+              {{ stepsDone }} de {{ steps.length }} concluídos. Complete-os para ver seu Dashboard preenchido.
+            </p>
+          </div>
+          <v-btn
+            icon
+            variant="text"
+            size="small"
+            color="default"
+            aria-label="Dispensar primeiros passos"
+            @click="dismissOnboarding"
+          >
+            <v-icon size="18">mdi-close</v-icon>
+          </v-btn>
+        </div>
+        <v-progress-linear
+          :model-value="(stepsDone / steps.length) * 100"
+          color="primary"
+          rounded
+          height="6"
+          class="my-4"
+        />
+        <ol class="onboarding__steps">
+          <li v-for="(step, i) in steps" :key="step.key" class="onboarding__step">
+            <v-icon :color="step.done ? 'success' : undefined" size="20" class="onboarding__check">
+              {{ step.done ? "mdi-check-circle" : "mdi-circle-outline" }}
+            </v-icon>
+            <div class="flex-grow-1 min-w-0">
+              <div class="text-body-2 font-weight-medium" :class="{ 'onboarding__done': step.done }">
+                {{ i + 1 }}. {{ step.title }}
+              </div>
+              <div class="text-caption text-medium-emphasis">{{ step.description }}</div>
+            </div>
+            <v-btn
+              v-if="!step.done"
+              :to="step.to"
+              size="small"
+              :variant="step.key === nextStep?.key ? 'flat' : 'outlined'"
+              :color="step.key === nextStep?.key ? 'primary' : 'default'"
+            >
+              Fazer agora
+            </v-btn>
+          </li>
+        </ol>
+      </div>
+    </v-card>
+
     <v-card class="summary-strip">
       <div v-for="stat in stats" :key="stat.label" class="summary-strip__item">
         <span class="summary-strip__icon">
@@ -142,14 +195,16 @@ import PageHeader from "../components/PageHeader.vue";
 import BarList from "../components/BarList.vue";
 import MonthlySpendingChart from "../components/MonthlySpendingChart.vue";
 import { useCurrency } from "../composables/useCurrency";
+import onboardingImage from "../assets/empty/onboarding.webp";
 import {
   greeting,
   monthlyTotals,
+  onboardingSteps,
   percentChange,
   periodOptions,
   totalsByCard,
 } from "../utils/dashboard";
-import type { CreditCard, Statement, Tenant } from "../types/domain";
+import type { CreditCard, Purchase, Statement, Tenant } from "../types/domain";
 
 const { toCurrencyBRL } = useCurrency();
 
@@ -157,6 +212,42 @@ const loading = ref(false);
 const cards = ref<CreditCard[]>([]);
 const tenants = ref<Tenant[]>([]);
 const statements = ref<Statement[]>([]);
+const purchaseCount = ref(0);
+const loaded = ref(false);
+
+const ONBOARDING_KEY = "financial-app-onboarding-dismissed";
+const onboardingDismissed = ref(readDismissed());
+
+function readDismissed(): boolean {
+  try {
+    return localStorage.getItem(ONBOARDING_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function dismissOnboarding() {
+  onboardingDismissed.value = true;
+  try {
+    localStorage.setItem(ONBOARDING_KEY, "1");
+  } catch {
+    // Preference only; ignore storage errors.
+  }
+}
+
+const steps = computed(() =>
+  onboardingSteps({
+    tenants: tenants.value.length,
+    cards: cards.value.length,
+    purchases: purchaseCount.value,
+    statements: statements.value.length,
+  })
+);
+const stepsDone = computed(() => steps.value.filter((s) => s.done).length);
+const nextStep = computed(() => steps.value.find((s) => !s.done));
+const showOnboarding = computed(
+  () => loaded.value && !onboardingDismissed.value && stepsDone.value < steps.value.length
+);
 
 const now = new Date();
 const periods = periodOptions(now.getFullYear(), now.getMonth() + 1);
@@ -200,14 +291,17 @@ const stats = computed(() => {
 async function fetchDashboard() {
   loading.value = true;
   try {
-    const [cardRes, tenantRes, statementRes] = await Promise.all([
+    const [cardRes, tenantRes, statementRes, purchaseRes] = await Promise.all([
       http.get<CreditCard[]>("/credit-cards"),
       http.get<Tenant[]>("/tenants"),
       http.get<Statement[]>("/statements"),
+      http.get<Purchase[]>("/purchases"),
     ]);
     cards.value = cardRes.data || [];
     tenants.value = tenantRes.data || [];
     statements.value = Array.isArray(statementRes.data) ? statementRes.data : [];
+    purchaseCount.value = (purchaseRes.data || []).length;
+    loaded.value = true;
   } finally {
     loading.value = false;
   }
@@ -269,6 +363,48 @@ onMounted(fetchDashboard);
   .summary-strip__item + .summary-strip__item {
     border-left: 0;
     border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  }
+}
+
+.onboarding {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+.onboarding__image {
+  width: 168px;
+  height: 168px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.onboarding__body {
+  flex: 1;
+  min-width: 0;
+}
+.onboarding__steps {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+}
+.onboarding__step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.onboarding__check {
+  color: rgba(var(--v-theme-on-surface), 0.4);
+}
+.onboarding__done {
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  text-decoration: line-through;
+}
+@media (max-width: 900px) {
+  .onboarding__image {
+    display: none;
+  }
+  .onboarding__steps {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

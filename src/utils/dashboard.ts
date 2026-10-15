@@ -93,3 +93,26 @@ export function greeting(now: Date = new Date()): string {
   if (h < 18) return "Boa tarde";
   return "Boa noite";
 }
+
+export type OnboardingStep = {
+  key: "tenant" | "card" | "purchase" | "statement";
+  title: string;
+  description: string;
+  to: string;
+  done: boolean;
+};
+
+/** First-use checklist, in the order the app needs the data. */
+export function onboardingSteps(counts: {
+  tenants: number;
+  cards: number;
+  purchases: number;
+  statements: number;
+}): OnboardingStep[] {
+  return [
+    { key: "tenant", title: "Cadastre um responsável", description: "Quem participa das contas.", to: "/tenants", done: counts.tenants > 0 },
+    { key: "card", title: "Cadastre um cartão", description: "Crédito ou débito.", to: "/credit-cards", done: counts.cards > 0 },
+    { key: "purchase", title: "Lance uma compra", description: "À vista ou parcelada.", to: "/purchases", done: counts.purchases > 0 },
+    { key: "statement", title: "Gere a primeira fatura", description: "Ela alimenta o Dashboard e os relatórios.", to: "/statements", done: counts.statements > 0 },
+  ];
+}
