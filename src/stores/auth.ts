@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import http from "../plugins/http";
 import { useToastStore } from "./toast";
-import { isTokenExpired } from "../utils/jwt";
+import { decodeJwtPayload, isTokenExpired } from "../utils/jwt";
 
 const TOKEN_KEY = "token";
 // Login and logout reload the page right after; this keeps their toast visible first.
@@ -28,6 +28,11 @@ export const useAuthStore = defineStore("auth", {
   }),
   getters: {
     isAuthenticated: (s) => !!s.token,
+    /** E-mail from the token payload (`{ sub, email }`), so it survives page reloads. */
+    userEmail: (s): string => {
+      const email = s.token ? decodeJwtPayload(s.token)?.email : null;
+      return typeof email === "string" ? email : s.email;
+    },
   },
   actions: {
     async register(name: string, email: string, password: string) {

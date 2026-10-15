@@ -31,6 +31,7 @@ onMounted(() => {
         v-bind="props"
         icon
         variant="text"
+        color="default"
         class="ml-1"
         @click="toggleTheme"
         :aria-label="
