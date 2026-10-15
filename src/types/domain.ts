@@ -111,6 +111,10 @@ export interface IncomeSource {
   description: string;
   amount: Money;
   incomeType: IncomeType;
+  /** Fixed: first day it counts (null = always); one-time: the day it is received. */
+  startDate: ISODate | null;
+  /** Fixed only: last day it counts (null = no end). */
+  endDate: ISODate | null;
 }
 
 export interface TenantReport {
