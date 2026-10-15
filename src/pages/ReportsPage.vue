@@ -73,7 +73,7 @@
         }}</template>
         <template #no-data>
           <EmptyState
-            :image="emptySearch"
+            :image="emptyReports"
             title="Sem dados neste mês"
             description="Os relatórios usam as faturas geradas do período."
             action-text="Ir para faturas"
@@ -145,7 +145,7 @@
 <script setup lang="ts">
 import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
-import emptySearch from "../assets/empty/empty-search.webp";
+import emptyReports from "../assets/empty/empty-investiments.webp";
 import { computed, onMounted, reactive, ref } from "vue";
 import FilterBar from "../components/FilterBar.vue";
 import StatCard from "../components/StatCard.vue";
