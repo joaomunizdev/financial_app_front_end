@@ -144,6 +144,8 @@ localStorage
 Protected Routes
 ```
 
+Sign-up asks for name, CPF, mobile phone, birth date, e-mail and password, and the account is activated by a 6-digit code sent by e-mail. Users can turn on two-step verification in **Meu perfil**: after the password, login asks for a code sent by e-mail. The profile page also edits personal data and changes the password.
+
 The token is automatically included in authenticated API requests:
 
 ```http

@@ -38,12 +38,14 @@ body,
 .v-application .v-sheet.v-sheet--border {
   border-radius: 12px;
 }
-.v-application .v-overlay .v-card {
+/* Dialogs and menus are teleported outside .v-application, so target overlays directly. */
+.v-overlay .v-card {
+  border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* Buttons: sentence case, medium weight */
-.v-application .v-btn {
+.v-btn.v-btn {
   text-transform: none;
   letter-spacing: 0;
   font-weight: 500;

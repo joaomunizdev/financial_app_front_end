@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AxiosError, AxiosHeaders } from "axios";
-import { extractApiErrorDetail, withDetail } from "./api-error";
+import { authErrorMessage, extractApiErrorDetail, withDetail } from "./api-error";
 
 function apiError(status: number, data: unknown) {
   const config = { headers: new AxiosHeaders() };
@@ -46,5 +46,17 @@ describe("extractApiErrorDetail", () => {
       "Falhou. Already exists"
     );
     expect(withDetail("Falhou.", new Error("x"))).toBe("Falhou.");
+  });
+
+  it("translates known auth messages and falls back to the detail", () => {
+    expect(authErrorMessage(apiError(409, { message: "CPF already in use" }), "Falhou.")).toBe(
+      "Este CPF já está cadastrado."
+    );
+    expect(authErrorMessage(apiError(400, { message: "CPF cannot be changed" }), "Falhou.")).toBe(
+      "O CPF não pode ser alterado."
+    );
+    expect(authErrorMessage(apiError(400, { message: "Something else" }), "Falhou.")).toBe(
+      "Falhou. Something else"
+    );
   });
 });
