@@ -23,6 +23,7 @@ src/
     BarList.vue           # ranked horizontal bars (single accent color, value + share labels)
     MonthlySpendingChart.vue # SVG column chart, last month emphasized, hover tooltip
     EmptyState.vue        # illustrated empty/error state (image, title, one line, single action)
+    CodeVerification.vue  # 6-digit e-mail code step (v-otp-input, inline error, 60 s resend cooldown); used by VerifyEmailPage and the login 2FA step
     ConfirmDialog.vue     # global confirmation dialog driven by stores/confirm
     FilterBar.vue         # year + month (ReportsPage)
     PeriodFilterBar.vue   # card + year + month + find/generate/clear (StatementsPage)
@@ -39,7 +40,7 @@ src/
   schemas/                # purchaseSchema.ts (+ PurchaseFormValues), money.ts (moneyField)
   stores/                 # auth.ts, toast.ts (queue), confirm.ts (promise-based), connection.ts (offline flag)
   types/domain.ts         # API entity types (CreditCard, Purchase, Statement, ...)
-  utils/                  # date.ts, jwt.ts, api-error.ts, dashboard.ts (dashboard aggregations)
+  utils/                  # date.ts, jwt.ts, api-error.ts (+ authErrorMessage pt-BR map), dashboard.ts, br.ts (CPF/phone validation + masks), email.ts (blocked test domains, mirror of the backend list)
   test/                   # setup.ts (happy-dom shims), helpers.ts (fakeJwt)
 ```
 
@@ -112,7 +113,8 @@ Single client: **`src/plugins/http.ts`** (default export). Never create another 
 ### Endpoint notes (verified against the backend)
 | Domain | Notes |
 |---|---|
-| Auth | `POST /auth/login` → `{ accessToken }` (JWT, `exp` = 1 day); `POST /auth/register` (409 if email exists) |
+| Auth | `POST /auth/register` `{name,email,password,cpf,phone,birthDate}` (digits only; 409 e-mail/CPF in use) → no token, code e-mailed; `POST /auth/verify-email {email,code}` → `{ accessToken }`; `POST /auth/login` → `{ accessToken }` \| `{ twoFactorRequired, challengeToken }` \| `{ emailVerificationRequired, email }`; `POST /auth/login/verify {challengeToken,code}`; resend: `/auth/resend-verification`, `/auth/login/resend` (JWT `exp` = 1 day) |
+| Users | `GET /users/me` (`UserProfile`), `PATCH /users/me` (name, cpf, phone, birthDate), `POST /users/me/password`, `PATCH /users/me/two-factor {enabled,password}`; wrong current password = 400 |
 | Credit cards | CRUD `/credit-cards`; `cardType: "credit" \| "debit"` (debit: `limitAmount` null, no installment purchases → 400). **PATCH credit→debit converts the card's installment purchases into monthly one-time purchases** (same description, statement items relabeled "Compra à vista", statement totals unchanged; irreversible). Delete → 409 if the card has purchases or statements (deactivate with `PATCH {active:false}`) |
 | Tenants | CRUD `/tenants`; delete → 403 "Tenant has purchases" when it has purchases |
 | Purchases | CRUD `/purchases`; list filters `creditCardId`, `tenantId` (also `dateStart`, `dateEnd`, `isInstallment`, unused); `installmentsTotal/Paid` validated only when `isInstallment` |
@@ -127,6 +129,9 @@ Backend `ValidationPipe` uses `forbidNonWhitelisted`: send only DTO fields — b
 - `RouteMeta` is typed (`auth?`, `layout?: "auth"`). Protected routes: `meta: { auth: true }`; `/login`, `/register`: `meta: { layout: "auth" }`. Unknown paths render `NotFoundPage` (protected, so unauthenticated users go to `/login`).
 - Guard: `auth.syncSession()`, then `auth && !isAuthenticated → /login`; auth-layout routes while authenticated → `/dashboard`.
 - Login/register/logout navigate with `location.assign` (full reload). Keep it unless deliberately reworking the auth flow.
+- Auth flows (store `auth.ts`): `register` (no session, toast "código enviado") → `/verify-email?email=` → `verifyEmail` starts the session. `login` returns `LoginResult`: `authenticated`, `two_factor` (LoginPage switches to the code step with the `challengeToken`), or `verify_email` (redirect to `/verify-email`). Code/verify/resend calls use `skipToast` and show `authErrorMessage(...)` inline.
+- `/profile` (account menu → "Meu perfil", breadcrumb "Conta"): personal data, password change and the optional login second factor (toggling asks for the password). E-mail is read-only; **the CPF is permanent** (read-only once set; older accounts may fill it in once).
+- Sign-up refuses fictitious/test e-mail domains (`utils/email.ts`, same list as the backend).
 - Adding a page = route (with `meta`) + AppShell nav item + AppShell title map + page.
 
 ## 8. Business Domains (frontend behavior)
