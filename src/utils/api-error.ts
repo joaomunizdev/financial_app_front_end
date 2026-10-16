@@ -12,6 +12,8 @@ export function extractApiErrorDetail(error: unknown): string | null {
 
   const { status } = error.response;
   if (status >= 500) return "Erro interno do servidor.";
+  // Per-IP rate limit of the API (Retry-After says when to try again).
+  if (status === 429) return "Muitas tentativas em pouco tempo. Aguarde um pouco e tente de novo.";
 
   const { message } = (error.response.data ?? {}) as ApiErrorBody;
   if (Array.isArray(message)) {
