@@ -31,6 +31,14 @@ describe("extractApiErrorDetail", () => {
     );
   });
 
+  it("explains rate limiting in Portuguese", () => {
+    const err = apiError(429, { message: "Too many requests, try again later" });
+    expect(extractApiErrorDetail(err)).toBe("Muitas tentativas em pouco tempo. Aguarde um pouco e tente de novo.");
+    expect(authErrorMessage(err, "Não foi possível entrar.")).toBe(
+      "Não foi possível entrar. Muitas tentativas em pouco tempo. Aguarde um pouco e tente de novo."
+    );
+  });
+
   it("reports network failures", () => {
     const err = new AxiosError("Network Error", "ERR_NETWORK");
     expect(extractApiErrorDetail(err)).toBe("Não foi possível conectar ao servidor.");
